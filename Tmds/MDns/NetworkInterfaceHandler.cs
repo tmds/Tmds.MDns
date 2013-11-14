@@ -367,6 +367,7 @@ namespace Tmds.MDns
                 {
                     ServiceBrowser.onServiceRemoved(service);
                 }
+                clearServiceHostInfo(service);
             }
         }
 
