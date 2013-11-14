@@ -14,6 +14,7 @@
 //License along with this library; if not, write to the Free Software
 //Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
+using NLog;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -69,6 +70,7 @@ namespace Tmds.MDns
 
         internal void onServiceAdded(ServiceInfo service)
         {
+            Logger.Debug("{0} Service Added: {1}", service.NetworkInterface.Name, service.Name);
             if (ServiceAdded != null)
             {
                 ServiceAnnouncement announcement = new ServiceAnnouncement();
@@ -88,6 +90,7 @@ namespace Tmds.MDns
 
         internal void onServiceRemoved(ServiceInfo service)
         {
+            Logger.Debug("{0} Service Removed: {1}", service.NetworkInterface.Name, service.Name);
             if (ServiceRemoved != null)
             {
                 var key = Tuple.Create(service.NetworkInterface.Id, service.Name);
@@ -103,6 +106,7 @@ namespace Tmds.MDns
 
         internal void onServiceChanged(ServiceInfo service)
         {
+            Logger.Debug("{0} Service Changed: {1}", service.NetworkInterface.Name, service.Name);
             if (ServiceChanged != null)
             {
                 ServiceAnnouncement announcement = ServiceAnnouncements[Tuple.Create(service.NetworkInterface.Id, service.Name)];
@@ -231,5 +235,6 @@ namespace Tmds.MDns
         private Dictionary<Tuple<string, Name>, ServiceAnnouncement> ServiceAnnouncements = new Dictionary<Tuple<string, Name>, ServiceAnnouncement>();
         private List<string> ServiceTypes = new List<string>();
         private Dictionary<int, NetworkInterfaceHandler> InterfaceHandlers;
+        private static Logger Logger = LogManager.GetCurrentClassLogger();
     }
 }

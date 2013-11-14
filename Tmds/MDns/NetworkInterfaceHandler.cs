@@ -14,6 +14,7 @@
 //License along with this library; if not, write to the Free Software
 //Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
+using NLog;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -51,9 +52,9 @@ namespace Tmds.MDns
             {
                 return;
             }
-
             lock (this)
             {
+                Logger.Debug("{0} Enable", NetworkInterface.Name);
                 IsEnabled = true;
 
                 Socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
@@ -82,6 +83,7 @@ namespace Tmds.MDns
 
             lock (this)
             {
+                Logger.Debug("{0} Disable", NetworkInterface.Name);
                 IsEnabled = false;
 
                 foreach (var serviceHandlerKV in ServiceHandlers)
@@ -132,6 +134,7 @@ namespace Tmds.MDns
 
         internal void onServiceQuery(Name serviceName)
         {
+            Logger.Debug("{0} onServiceQuery {1}", NetworkInterface.Name, serviceName);
             DateTime now = DateTime.Now;
             List<ServiceInfo> robustnessServices = null;
             ServiceHandler serviceHandler = ServiceHandlers[serviceName];
@@ -145,20 +148,24 @@ namespace Tmds.MDns
                     {
                         robustnessServices = new List<ServiceInfo>();
                     }
+                    Logger.Debug("> Robustness {0}", serviceInfo.Name);
                     robustnessServices.Add(serviceInfo);
                 }
             }
             if (robustnessServices != null)
             {
+                Logger.Debug("> Schedule Robustness Timer");
                 Timer timer = new Timer(o =>
                 {
                     lock (o)
                     {
+                        Logger.Debug("{0} Robustness Timer {1}", NetworkInterface.Name, serviceName);
                         foreach (ServiceInfo robustnessService in robustnessServices)
                         {
                             if (robustnessService.OpenQueryCount >= ServiceBrowser.QueryParameters.Robustness)
                             {
                                 Name name = robustnessService.Name;
+                                Logger.Debug(">> Remove Service {0}", name);
                                 removeService(name);
                             }
                         }
@@ -201,6 +208,7 @@ namespace Tmds.MDns
                     {
                         if (header.TransactionID != ServiceHandlers[serviceName].LastTransactionId)
                         {
+                            Logger.Debug("{0} Receive Query", NetworkInterface.Name);
                             onServiceQuery(serviceName);
                         }
                     }
@@ -212,6 +220,8 @@ namespace Tmds.MDns
                         Question question = reader.ReadQuestion();
                     }
 
+                    Logger.Debug("{0} ReceiveResponse", NetworkInterface.Name);
+                    
                     PacketServiceInfos.Clear();
                     PacketHostAddresses.Clear();
 
@@ -221,6 +231,7 @@ namespace Tmds.MDns
                         if ((recordHeader.Type == RecordType.A) || (recordHeader.Type == RecordType.AAAA)) // A or AAAA
                         {
                             IPAddress address = reader.ReadARecord();
+                            Logger.Debug("> A record {0} -> {1} ({2})", recordHeader.Name, address, recordHeader.Ttl);
                             onARecord(recordHeader.Name, address, recordHeader.Ttl);
                         }
                         else if ((recordHeader.Type == RecordType.SRV) ||
@@ -233,16 +244,26 @@ namespace Tmds.MDns
                             {
                                 serviceName = recordHeader.Name;
                                 instanceName = reader.ReadPtrRecord();
+                                Logger.Debug("> PTR record {0} -> {1} ({2})", recordHeader.Name, instanceName, recordHeader.Ttl);
                             }
                             else
                             {
                                 instanceName = recordHeader.Name;
                                 serviceName = instanceName.SubName(1);
+                                if (recordHeader.Type == RecordType.SRV)
+                                {
+                                    Logger.Debug("> PTR record {0} ({1})", recordHeader.Name, recordHeader.Ttl);
+                                }
+                                else
+                                {
+                                    Logger.Debug("> TXT record {0} ({1})", recordHeader.Name, recordHeader.Ttl);
+                                }
                             }
                             if (ServiceHandlers.ContainsKey(serviceName))
                             {
                                 if (recordHeader.Ttl == 0)
                                 {
+                                    Logger.Debug(">> Remove Service {0}", instanceName);
                                     packetRemovesService(instanceName);
                                 }
                                 else
@@ -253,11 +274,13 @@ namespace Tmds.MDns
                                         SrvRecord srvRecord = reader.ReadSrvRecord();
                                         service.HostName = srvRecord.Target;
                                         service.Port = srvRecord.Port;
+                                        Logger.Debug(">> Service {0} Host={1} Port={2}", instanceName, service.HostName, service.Port);
                                     }
                                     else if (recordHeader.Type == RecordType.TXT)
                                     {
                                         List<string> txts = reader.ReadTxtRecord();
                                         service.Txt = txts;
+                                        Logger.Debug(">> Service {0} Txt={1}", instanceName, string.Concat(txts));
                                     }
                                 }
                             }
@@ -332,9 +355,11 @@ namespace Tmds.MDns
 
                 if (packetAddresses == null)
                 {
+                    Logger.Debug("~ Remove Host {0}", name);
                     HostInfos.Remove(name);
                     foreach (var service in hostInfo.ServiceInfos)
                     {
+                        Logger.Debug("~~ Remove Host service {0}", service.Name);
                         packetRemovesService(service.Name);
                     }
                 }
@@ -344,9 +369,11 @@ namespace Tmds.MDns
                     bool same = (addresses != null) && (addresses.Count == packetAddresses.Count) && (addresses.TrueForAll(address => packetAddresses.Contains(address)));
                     if (!same)
                     {
+                        Logger.Debug("~ New Adresses for Host {0}", name);
                         foreach (var service in hostInfo.ServiceInfos)
                         {
                             ServiceInfo newService = findOrCreatePacketService(service.Name);
+                            Logger.Debug("~~ New Adresses for Host service {0}", service.Name);
                             newService.Addresses = packetAddresses;
                         }
                         hostInfo.Addresses = packetAddresses;
@@ -380,6 +407,7 @@ namespace Tmds.MDns
 
                 if (packetService == null)
                 {
+                    Logger.Debug("~ Remove Service {0}", packetName);
                     removeService(packetName);
                 }
                 else
@@ -392,12 +420,14 @@ namespace Tmds.MDns
 
                     if (service == null)
                     {
+                        Logger.Debug("~ New Service {0}", packetName);
                         service = packetService;
                         ServiceInfos.Add(packetName, service);
                         ServiceHandlers[packetName.SubName(1)].ServiceInfos.Add(service);
 
                         if (service.HostName != null)
                         {
+                            Logger.Debug("~~ addServiceHostInfo {0}", service.HostName);
                             addServiceHostInfo(service);
                         }
 
@@ -410,32 +440,39 @@ namespace Tmds.MDns
 
                         if (packetService.Port != -1 && service.Port != packetService.Port)
                         {
+                            Logger.Debug("~ Service {0} Set Port", packetName);
                             service.Port = packetService.Port;
                             modified = true;
                         }
                         if (packetService.Name.ToString() != service.Name.ToString())
                         {
+                            Logger.Debug("~ Service {0} Set Name", packetName);
                             service.Name = packetService.Name;
                             modified = true;
                         }
                         if (packetService.Txt != null && (service.Txt == null || !packetService.Txt.SequenceEqual(service.Txt)))
                         {
+                            Logger.Debug("~ Service {0} Set Txt", packetName);
                             service.Txt = packetService.Txt;
                             modified = true;
                         }
                         if (packetService.HostName != null && (service.HostName == null || service.HostName.ToString() != packetService.HostName.ToString()))
                         {
+                            Logger.Debug("~ Service {0} Set Hostname", packetName);
                             if (service.HostName != null)
                             {
+                                Logger.Debug("~~ clearServiceHostInfo {0}", service.HostName);
                                 clearServiceHostInfo(service);
                             }
 
                             service.HostName = packetService.HostName;
+                            Logger.Debug("~~ addServiceHostInfo {0}", packetService.HostName);
                             addServiceHostInfo(service);
                             modified = true;
                         }
                         if (packetService.Addresses != null)
                         {
+                            Logger.Debug("~ Service {0} Set Addresses", packetName);
                             service.Addresses = packetService.Addresses;
                             modified = true;
                         }
@@ -509,5 +546,6 @@ namespace Tmds.MDns
         private Dictionary<Name, ServiceInfo> ServiceInfos = new Dictionary<Name, ServiceInfo>();
         private Dictionary<Name, HostInfo> HostInfos = new Dictionary<Name, HostInfo>();
         private Dictionary<Name, ServiceHandler> ServiceHandlers = new Dictionary<Name, ServiceHandler>();
+        private static Logger Logger = LogManager.GetCurrentClassLogger();
     }
 }
