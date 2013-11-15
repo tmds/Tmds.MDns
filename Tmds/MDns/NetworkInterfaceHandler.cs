@@ -394,7 +394,10 @@ namespace Tmds.MDns
                 {
                     ServiceBrowser.onServiceRemoved(service);
                 }
-                clearServiceHostInfo(service);
+                if (service.HostName != null)
+                {
+                    clearServiceHostInfo(service);
+                }
             }
         }
 
@@ -510,7 +513,7 @@ namespace Tmds.MDns
             {
                 HostInfos.Remove(hostname);
             }
-            
+            service.HostName = null;
             service.Addresses = null;
         }
 
