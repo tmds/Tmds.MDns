@@ -14,7 +14,6 @@
 //License along with this library; if not, write to the Free Software
 //Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
-using NLog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -35,14 +34,12 @@ namespace Tmds.MDns
         
         public void StartBrowse()
         {
-            Logger.Debug("{0} StartBrowse", Name);
             QueryCount = 0;
             scheduleTimer(0);
         }
 
         public void StopBrowse()
         {
-            Logger.Debug("{0} StopBrowse", Name);
             scheduleTimer(System.Threading.Timeout.Infinite);
         }
 
@@ -53,7 +50,6 @@ namespace Tmds.MDns
 
         private void onTimerElapsed(object obj)
         {
-            Logger.Debug("{0} Query Timer", Name);
             QueryParameters queryParameters = NetworkInterfaceHandler.ServiceBrowser.QueryParameters;
             DateTime now = DateTime.Now;
 
@@ -113,7 +109,6 @@ namespace Tmds.MDns
 
         private int QueryCount = 0;
         private Timer Timer;
-        private static Logger Logger = LogManager.GetCurrentClassLogger();
     }
         
 }
