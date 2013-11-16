@@ -469,15 +469,18 @@ namespace Tmds.MDns
         private void clearServiceHostInfo(ServiceInfo service)
         {
             Name hostname = service.HostName;
-            HostInfo hostInfo = HostInfos[hostname];
-
-            hostInfo.ServiceInfos.Remove(service);
-            if (hostInfo.ServiceInfos.Count == 0)
+            HostInfo hostInfo = null;
+            HostInfos.TryGetValue(hostname, out hostInfo);
+            if (hostInfo != null)
             {
-                HostInfos.Remove(hostname);
+                hostInfo.ServiceInfos.Remove(service);
+                if (hostInfo.ServiceInfos.Count == 0)
+                {
+                    HostInfos.Remove(hostname);
+                }
+                service.HostName = null;
+                service.Addresses = null;
             }
-            service.HostName = null;
-            service.Addresses = null;
         }
 
         private void addServiceHostInfo(ServiceInfo service)
