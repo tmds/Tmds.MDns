@@ -30,7 +30,7 @@ Example
                 serviceBrowser.ServiceAdded += onServiceAdded;
                 serviceBrowser.ServiceRemoved += onServiceRemoved;
                 serviceBrowser.ServiceChanged += onServiceChanged;
-            
+
                 Console.WriteLine("Browsing for type: {0}", serviceType);
                 serviceBrowser.StartBrowse(serviceType);
                 Console.ReadLine();
@@ -54,37 +54,9 @@ Example
             static void printService(char startChar, ServiceAnnouncement service)
             {
                 Console.WriteLine("{0} '{1}' on {2}", startChar, service.Instance, service.NetworkInterface.Name);
-                Console.WriteLine("\tHost: {0} ({1})", service.Hostname, ipAddresses(service.Addresses));
+                Console.WriteLine("\tHost: {0} ({1})", service.Hostname, string.Join(", ", service.Addresses));
                 Console.WriteLine("\tPort: {0}", service.Port);
-                Console.WriteLine("\tTxt : [{0}]", txtString(service.Txt));
-            }
-        
-            static string txtString(IList<string> txt)
-            {
-                StringBuilder sb = new StringBuilder();
-                foreach (string s in txt)
-                {
-                    if (sb.Length != 0)
-                    {
-                        sb.Append(", ");
-                    }
-                    sb.Append(s);
-                }
-                return sb.ToString();
-            }
-
-            static string ipAddresses(IList<IPAddress> addresses)
-            {
-                StringBuilder sb = new StringBuilder();
-                foreach (IPAddress address in addresses)
-                {
-                    if (sb.Length != 0)
-                    {
-                        sb.Append(", ");
-                    }
-                    sb.Append(address.ToString());
-                }
-                return sb.ToString();
+                Console.WriteLine("\tTxt : [{0}]", string.Join(", ", service.Txt));
             }
         }
     }
