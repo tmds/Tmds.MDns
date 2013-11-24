@@ -1,10 +1,12 @@
 Tmds.MDns
 =========
 
-Multicast DNS ServiceBrowser
+This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).
 
 Example
 -------
+
+This examples shows how to use the ServiceBrowser class to find \_workstation.\_tcp_ types.
 
     using System;
     using System.Collections.Generic;
@@ -60,3 +62,23 @@ Example
             }
         }
     }
+
+Implementation
+--------------
+
+The library does not aim to be a reference DNS querier and cache as described in RFC6762. These are the key differences:
+
+- The DNS time to lives are not used. The user can set his own query interval to obtain the **responsiveness** (time to detect, time to live) he desires. The query interval does not increase exponentially as suggested by the RFC, queries are sent at a regular pace.
+- To avoid that each service browser instance queries the network for the same service, an instance will not query when it hears another querrier. As a result (in steady state) only **one querrier** will be present, while the others will be listening.
+- The library is **self-contained** and does not use a system service (e.g. avahi, bonjour) for mDNS. RFC6762 recommends the use of a single service, but it is not possible to combine this requirement with the differences described in this paragraph.
+- The library **automatically resolves the IP addresses** of the service host. No separate resolve operation is required.
+- The library launches events in a **_SynchronizationContext_**. This context can be set explicitly or it is captured automatically when the first browse operation starts. Using this library in a WinForms/WPF application is easy as the user can update the controls directly in the event handlers.
+
+Possible Improvements
+---------------------
+
+The current implementation is an MVL (minimal viable library). Some areas that can be improved:
+- RFC6763 specifies PTR service responses should include address records. The implementation assumes this will be the case. For services announced by a recent software stack (avahi, bonjour, ...) this will true. "Older" devices don't always include this information. As a consequence, those devices are not found.
+- The library assumes that a packet which contains an IP address for a host will contain all addresses for that host. In mixed IPv4/IPv6 environment this causes the service address list to be updated when a packet does not contain all addresses.
+- When browsing for multiple service types, a query is sent for each type separately. These queries could be combined.
+- The number of responses to a query can be reduced by adding known answers for the service instances which don't need to be queried. This mechanism could then even be used to split the single query per query interval into a set of queries each targeting a subset of the devices.
