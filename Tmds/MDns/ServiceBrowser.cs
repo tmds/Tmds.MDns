@@ -56,6 +56,7 @@ namespace Tmds.MDns
         public QueryParameters QueryParameters { get; private set; }
         public SynchronizationContext SynchronizationContext { get; set; }
         public bool IsBrowsing { get; private set; }
+        public IEnumerator<ServiceAnnouncement> Services { get { return _services.GetEnumerator(); } }
 
         public event EventHandler<ServiceAnnouncementEventArgs> ServiceAdded;
         public event EventHandler<ServiceAnnouncementEventArgs> ServiceRemoved;
@@ -78,6 +79,10 @@ namespace Tmds.MDns
             _serviceAnnouncements.Add(Tuple.Create(service.NetworkInterface.Id, service.Name), announcement);
             SynchronizationContextPost(o =>
             {
+                lock (_services)
+                {
+                    _services.Add(announcement);
+                }
                 if (ServiceAdded != null)
                 {
                     ServiceAdded(this, new ServiceAnnouncementEventArgs(announcement));
@@ -93,6 +98,10 @@ namespace Tmds.MDns
             SynchronizationContextPost(o =>
             {
                 announcement.IsRemoved = true;
+                lock (_services)
+                {
+                    _services.Remove(announcement);
+                }
                 if (ServiceRemoved != null)
                 {
                     ServiceRemoved(this, new ServiceAnnouncementEventArgs(announcement));
@@ -229,6 +238,7 @@ namespace Tmds.MDns
             }
         }
 
+        private readonly HashSet<ServiceAnnouncement> _services = new HashSet<ServiceAnnouncement>();
         private readonly Dictionary<Tuple<string, Name>, ServiceAnnouncement> _serviceAnnouncements = new Dictionary<Tuple<string, Name>, ServiceAnnouncement>();
         private readonly List<string> _serviceTypes = new List<string>();
         private Dictionary<int, NetworkInterfaceHandler> _interfaceHandlers;
