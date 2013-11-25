@@ -14,10 +14,6 @@
 //License along with this library; if not, write to the Free Software
 //Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using NetworkInterfaceInformation = System.Net.NetworkInformation.NetworkInterface;
 
 namespace Tmds.MDns
@@ -30,11 +26,12 @@ namespace Tmds.MDns
 
         public override bool Equals(object obj)
         {
-            if (obj == null || GetType() != obj.GetType())
+            NetworkInterface networkInterface = obj as NetworkInterface;
+            if (networkInterface == null)
             {
                 return false;
             }
-            return Id.Equals((obj as NetworkInterface).Id);
+            return Id.Equals(networkInterface.Id);
         }
 
         public override int GetHashCode()

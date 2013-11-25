@@ -21,7 +21,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 
 namespace Tmds.MDns
@@ -32,14 +31,14 @@ namespace Tmds.MDns
         {
             ServiceBrowser = serviceBrowser;
             NetworkInterface = networkInterface;
-            Index = NetworkInterface.Information.GetIPProperties().GetIPv4Properties().Index;
+            _index = NetworkInterface.Information.GetIPProperties().GetIPv4Properties().Index;
         }
 
         public void StartBrowse(Name name)
         {
-            ServiceHandler serviceHandler = new ServiceHandler(this, name);
-            ServiceHandlers.Add(name, serviceHandler);
-            if (IsEnabled)
+            var serviceHandler = new ServiceHandler(this, name);
+            _serviceHandlers.Add(name, serviceHandler);
+            if (_isEnabled)
             {
                 serviceHandler.StartBrowse();
             }
@@ -47,26 +46,26 @@ namespace Tmds.MDns
 
         public void Enable()
         {
-            if (IsEnabled)
+            if (_isEnabled)
             {
                 return;
             }
 
             lock (this)
             {
-                IsEnabled = true;
+                _isEnabled = true;
 
-                Socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-                Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, (int)IPAddress.HostToNetworkOrder(Index));
-                Socket.Bind(new IPEndPoint(IPAddress.Any, IPv4EndPoint.Port));
+                _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, IPAddress.HostToNetworkOrder(_index));
+                _socket.Bind(new IPEndPoint(IPAddress.Any, IPv4EndPoint.Port));
                 IPAddress ip = IPv4EndPoint.Address;
-                Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(ip, Index));
-                Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
+                _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(ip, _index));
+                _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
                 
-                startReceive();
+                StartReceive();
 
-                foreach (var serviceHandlerKV in ServiceHandlers)
+                foreach (var serviceHandlerKV in _serviceHandlers)
                 {
                     serviceHandlerKV.Value.StartBrowse();
                 }
@@ -75,44 +74,45 @@ namespace Tmds.MDns
 
         public void Disable()
         {
-            if (!IsEnabled)
+            if (!_isEnabled)
             {
                 return;
             }
 
             lock (this)
             {
-                IsEnabled = false;
+                _isEnabled = false;
 
-                foreach (var serviceHandlerKV in ServiceHandlers)
+                foreach (var serviceHandlerKV in _serviceHandlers)
                 {
                     ServiceHandler serviceHandler = serviceHandlerKV.Value;
                     serviceHandler.StopBrowse();
                     serviceHandler.ServiceInfos.Clear();
                 }
 
-                Socket.Dispose();
-                Socket = null;
+                _socket.Dispose();
+                _socket = null;
 
-                foreach (var serviceKV in ServiceInfos)
+                foreach (var serviceKV in _serviceInfos)
                 {
                     ServiceInfo service = serviceKV.Value;
 
                     if (service.IsComplete)
                     {
-                        ServiceBrowser.onServiceRemoved(service);
+                        ServiceBrowser.OnServiceRemoved(service);
                     }
                 }
 
-                ServiceInfos.Clear();
-                HostInfos.Clear();
+                _serviceInfos.Clear();
+                _hostInfos.Clear();
             }
         }
 
         public ServiceBrowser ServiceBrowser { get; private set; }
         public NetworkInterface NetworkInterface { get; private set; }
+        public static readonly IPEndPoint IPv4EndPoint = new IPEndPoint(IPAddress.Parse("224.0.0.251"), 5353);
 
-        internal void send(IList<ArraySegment<byte>> packets)
+        internal void Send(IList<ArraySegment<byte>> packets)
         {
             lock (this)
             {
@@ -120,21 +120,19 @@ namespace Tmds.MDns
                 {
                     foreach (ArraySegment<byte> segment in packets)
                     {
-                        int bytesSent = Socket.SendTo(segment.Array, segment.Offset, segment.Count, SocketFlags.None, IPv4EndPoint);
+                        _socket.SendTo(segment.Array, segment.Offset, segment.Count, SocketFlags.None, IPv4EndPoint);
                     }
                 }
-                catch (Exception)
-                {
-                    return;
-                }
+                catch
+                {}
             }
         }
 
-        internal void onServiceQuery(Name serviceName)
+        internal void OnServiceQuery(Name serviceName)
         {
             DateTime now = DateTime.Now;
             List<ServiceInfo> robustnessServices = null;
-            ServiceHandler serviceHandler = ServiceHandlers[serviceName];
+            ServiceHandler serviceHandler = _serviceHandlers[serviceName];
             foreach (ServiceInfo serviceInfo in serviceHandler.ServiceInfos)
             {
                 serviceInfo.OpenQueryCount++;
@@ -150,7 +148,7 @@ namespace Tmds.MDns
             }
             if (robustnessServices != null)
             {
-                Timer timer = new Timer(o =>
+                var timer = new Timer(o =>
                 {
                     lock (o)
                     {
@@ -159,49 +157,49 @@ namespace Tmds.MDns
                             if (robustnessService.OpenQueryCount >= ServiceBrowser.QueryParameters.Robustness)
                             {
                                 Name name = robustnessService.Name;
-                                removeService(name);
+                                RemoveService(name);
                             }
                         }
                     }
-                }, this, ServiceBrowser.QueryParameters.ResponseTime, System.Threading.Timeout.Infinite);
+                }, this, ServiceBrowser.QueryParameters.ResponseTime, Timeout.Infinite);
             }
         }
 
-        private void startReceive()
+        private void StartReceive()
         {
-            Socket.BeginReceive(Buffer, 0, Buffer.Length, SocketFlags.None, onReceive, null);
+            _socket.BeginReceive(_buffer, 0, _buffer.Length, SocketFlags.None, OnReceive, null);
         }
 
-        private void onReceive(IAsyncResult ar)
+        private void OnReceive(IAsyncResult ar)
         {
             lock (this)
             {
-                int length = 0;
+                int length;
                 try
                 {
-                    if (Socket == null)
+                    if (_socket == null)
                     {
                         return;
                     }
-                    length = Socket.EndReceive(ar);
+                    length = _socket.EndReceive(ar);
                 }
                 catch (Exception)
                 {
                     return;
                 }
-                MemoryStream stream = new MemoryStream(Buffer, 0, length);
-                DnsMessageReader reader = new DnsMessageReader(stream);
+                var stream = new MemoryStream(_buffer, 0, length);
+                var reader = new DnsMessageReader(stream);
                 Header header = reader.ReadHeader();
 
                 if (header.IsQuery && header.QuestionCount == 1 && header.AnswerCount == 0)
                 {
                     Question question = reader.ReadQuestion();
                     Name serviceName = question.QName;
-                    if (ServiceHandlers.ContainsKey(serviceName))
+                    if (_serviceHandlers.ContainsKey(serviceName))
                     {
-                        if (header.TransactionID != ServiceHandlers[serviceName].LastTransactionId)
+                        if (header.TransactionID != _serviceHandlers[serviceName].LastTransactionId)
                         {
-                            onServiceQuery(serviceName);
+                            OnServiceQuery(serviceName);
                         }
                     }
                 }
@@ -209,11 +207,11 @@ namespace Tmds.MDns
                 {
                     for (int i = 0; i < header.QuestionCount; i++)
                     {
-                        Question question = reader.ReadQuestion();
+                        reader.ReadQuestion();
                     }
 
-                    PacketServiceInfos.Clear();
-                    PacketHostAddresses.Clear();
+                    _packetServiceInfos.Clear();
+                    _packetHostAddresses.Clear();
 
                     for (int i = 0; i < header.AnswerCount; i++)
                     {
@@ -221,14 +219,14 @@ namespace Tmds.MDns
                         if ((recordHeader.Type == RecordType.A) || (recordHeader.Type == RecordType.AAAA)) // A or AAAA
                         {
                             IPAddress address = reader.ReadARecord();
-                            onARecord(recordHeader.Name, address, recordHeader.Ttl);
+                            OnARecord(recordHeader.Name, address, recordHeader.Ttl);
                         }
                         else if ((recordHeader.Type == RecordType.SRV) ||
                                  (recordHeader.Type == RecordType.TXT) ||
                                 (recordHeader.Type == RecordType.PTR))
                         {
-                            Name serviceName = null;
-                            Name instanceName = null;
+                            Name serviceName;
+                            Name instanceName;
                             if (recordHeader.Type == RecordType.PTR)
                             {
                                 serviceName = recordHeader.Name;
@@ -239,15 +237,15 @@ namespace Tmds.MDns
                                 instanceName = recordHeader.Name;
                                 serviceName = instanceName.SubName(1);
                             }
-                            if (ServiceHandlers.ContainsKey(serviceName))
+                            if (_serviceHandlers.ContainsKey(serviceName))
                             {
                                 if (recordHeader.Ttl == 0)
                                 {
-                                    packetRemovesService(instanceName);
+                                    PacketRemovesService(instanceName);
                                 }
                                 else
                                 {
-                                    ServiceInfo service = findOrCreatePacketService(instanceName);
+                                    ServiceInfo service = FindOrCreatePacketService(instanceName);
                                     if (recordHeader.Type == RecordType.SRV)
                                     {
                                         SrvRecord srvRecord = reader.ReadSrvRecord();
@@ -263,68 +261,68 @@ namespace Tmds.MDns
                             }
                         }
                     }
-                    handlePacketHostAddresses();
-                    handlePacketServiceInfos();
+                    HandlePacketHostAddresses();
+                    HandlePacketServiceInfos();
                 }
-                startReceive();
+                StartReceive();
             }
         }
 
-        private void onARecord(Name name, IPAddress address, uint ttl)
+        private void OnARecord(Name name, IPAddress address, uint ttl)
         {
             if (ttl == 0)
             {
-                PacketHostAddresses.Remove(name);
-                PacketHostAddresses.Add(name, null);
+                _packetHostAddresses.Remove(name);
+                _packetHostAddresses.Add(name, null);
             }
             else
             {
-                List<IPAddress> addresses = null;
-                bool found = PacketHostAddresses.TryGetValue(name, out addresses);
+                List<IPAddress> addresses;
+                bool found = _packetHostAddresses.TryGetValue(name, out addresses);
                 if (addresses == null)
                 {
                     if (found)
                     {
-                        PacketServiceInfos.Remove(name);
+                        _packetServiceInfos.Remove(name);
                     }
                     addresses = new List<IPAddress>();
-                    PacketHostAddresses.Add(name, addresses);
+                    _packetHostAddresses.Add(name, addresses);
                 }
                 addresses.Add(address);
             }
         }
 
-        private void packetRemovesService(Name name)
+        private void PacketRemovesService(Name name)
         {
-            PacketServiceInfos.Remove(name);
-            PacketServiceInfos.Add(name, null);
+            _packetServiceInfos.Remove(name);
+            _packetServiceInfos.Add(name, null);
         }
 
-        private ServiceInfo findOrCreatePacketService(Name name)
+        private ServiceInfo FindOrCreatePacketService(Name name)
         {
-            ServiceInfo service = null;
-            bool found = PacketServiceInfos.TryGetValue(name, out service);
+            ServiceInfo service;
+            bool found = _packetServiceInfos.TryGetValue(name, out service);
             if (service == null)
             {
                 if (found)
                 {
-                    PacketServiceInfos.Remove(name);
+                    _packetServiceInfos.Remove(name);
                 }
                 service = new ServiceInfo(NetworkInterface, name);
-                PacketServiceInfos.Add(name, service);
+                _packetServiceInfos.Add(name, service);
             }
             return service;
         }
 
-        private void handlePacketHostAddresses()
+        private void HandlePacketHostAddresses()
         {
-            foreach (var hostAddressKV in PacketHostAddresses)
+            foreach (var hostAddressKV in _packetHostAddresses)
             {
                 Name name = hostAddressKV.Key;
                 List<IPAddress> packetAddresses = hostAddressKV.Value;
 
-                HostInfo hostInfo = null;
-                HostInfos.TryGetValue(name, out hostInfo);
+                HostInfo hostInfo;
+                _hostInfos.TryGetValue(name, out hostInfo);
                 if (hostInfo == null)
                 {
                     return;
@@ -332,21 +330,21 @@ namespace Tmds.MDns
 
                 if (packetAddresses == null)
                 {
-                    HostInfos.Remove(name);
+                    _hostInfos.Remove(name);
                     foreach (var service in hostInfo.ServiceInfos)
                     {
-                        packetRemovesService(service.Name);
+                        PacketRemovesService(service.Name);
                     }
                 }
                 else
                 {
                     var addresses = hostInfo.Addresses;
-                    bool same = (addresses != null) && (addresses.Count == packetAddresses.Count) && (addresses.TrueForAll(address => packetAddresses.Contains(address)));
+                    bool same = (addresses != null) && (addresses.Count == packetAddresses.Count) && (addresses.TrueForAll(packetAddresses.Contains));
                     if (!same)
                     {
                         foreach (var service in hostInfo.ServiceInfos)
                         {
-                            ServiceInfo newService = findOrCreatePacketService(service.Name);
+                            ServiceInfo newService = FindOrCreatePacketService(service.Name);
                             newService.Addresses = packetAddresses;
                         }
                         hostInfo.Addresses = packetAddresses;
@@ -355,53 +353,53 @@ namespace Tmds.MDns
             }
         }
 
-        private void removeService(Name name)
+        private void RemoveService(Name name)
         {
-            ServiceInfo service = null;
-            ServiceInfos.TryGetValue(name, out service);
+            ServiceInfo service;
+            _serviceInfos.TryGetValue(name, out service);
             if (service != null)
             {
-                ServiceInfos.Remove(name);
-                ServiceHandlers[name.SubName(1)].ServiceInfos.Remove(service);
+                _serviceInfos.Remove(name);
+                _serviceHandlers[name.SubName(1)].ServiceInfos.Remove(service);
                 if (service.IsComplete)
                 {
-                    ServiceBrowser.onServiceRemoved(service);
+                    ServiceBrowser.OnServiceRemoved(service);
                 }
                 if (service.HostName != null)
                 {
-                    clearServiceHostInfo(service);
+                    ClearServiceHostInfo(service);
                 }
             }
         }
 
-        private void handlePacketServiceInfos()
+        private void HandlePacketServiceInfos()
         {
-            foreach (var serviceKV in PacketServiceInfos)
+            foreach (var serviceKV in _packetServiceInfos)
             {
                 Name packetName = serviceKV.Key;
                 ServiceInfo packetService = serviceKV.Value;
 
                 if (packetService == null)
                 {
-                    removeService(packetName);
+                    RemoveService(packetName);
                 }
                 else
                 {
                     bool modified = false;
                     bool wasComplete = false;
 
-                    ServiceInfo service = null;
-                    ServiceInfos.TryGetValue(packetName, out service);
+                    ServiceInfo service;
+                    _serviceInfos.TryGetValue(packetName, out service);
 
                     if (service == null)
                     {
                         service = packetService;
-                        ServiceInfos.Add(packetName, service);
-                        ServiceHandlers[packetName.SubName(1)].ServiceInfos.Add(service);
+                        _serviceInfos.Add(packetName, service);
+                        _serviceHandlers[packetName.SubName(1)].ServiceInfos.Add(service);
 
                         if (service.HostName != null)
                         {
-                            addServiceHostInfo(service);
+                            AddServiceHostInfo(service);
                         }
 
                         modified = true;
@@ -430,11 +428,11 @@ namespace Tmds.MDns
                         {
                             if (service.HostName != null)
                             {
-                                clearServiceHostInfo(service);
+                                ClearServiceHostInfo(service);
                             }
 
                             service.HostName = packetService.HostName;
-                            addServiceHostInfo(service);
+                            AddServiceHostInfo(service);
                             modified = true;
                         }
                         if (packetService.Addresses != null)
@@ -450,52 +448,52 @@ namespace Tmds.MDns
                         {
                             if (wasComplete)
                             {
-                                ServiceBrowser.onServiceRemoved(service);
+                                ServiceBrowser.OnServiceRemoved(service);
                             }
                             else
                             {
-                                ServiceBrowser.onServiceAdded(service);
+                                ServiceBrowser.OnServiceAdded(service);
                             }
                         }
                         else if (service.IsComplete)
                         {
-                            ServiceBrowser.onServiceChanged(service);
+                            ServiceBrowser.OnServiceChanged(service);
                         }
                     }
                 }
             }
         }
 
-        private void clearServiceHostInfo(ServiceInfo service)
+        private void ClearServiceHostInfo(ServiceInfo service)
         {
             Name hostname = service.HostName;
-            HostInfo hostInfo = null;
-            HostInfos.TryGetValue(hostname, out hostInfo);
+            HostInfo hostInfo;
+            _hostInfos.TryGetValue(hostname, out hostInfo);
             if (hostInfo != null)
             {
                 hostInfo.ServiceInfos.Remove(service);
                 if (hostInfo.ServiceInfos.Count == 0)
                 {
-                    HostInfos.Remove(hostname);
+                    _hostInfos.Remove(hostname);
                 }
                 service.HostName = null;
                 service.Addresses = null;
             }
         }
 
-        private void addServiceHostInfo(ServiceInfo service)
+        private void AddServiceHostInfo(ServiceInfo service)
         {
             Name hostname = service.HostName;
             
-            HostInfo hostInfo = null;
-            HostInfos.TryGetValue(hostname, out hostInfo);
+            HostInfo hostInfo;
+            _hostInfos.TryGetValue(hostname, out hostInfo);
             if (hostInfo == null)
             {
                 hostInfo = new HostInfo();
-                List<IPAddress> addresses = null;
-                PacketHostAddresses.TryGetValue(hostname, out addresses);
+                List<IPAddress> addresses;
+                _packetHostAddresses.TryGetValue(hostname, out addresses);
                 hostInfo.Addresses = addresses;
-                HostInfos.Add(hostname, hostInfo);
+                _hostInfos.Add(hostname, hostInfo);
             }
             
             Debug.Assert(!hostInfo.ServiceInfos.Contains(service));
@@ -504,16 +502,14 @@ namespace Tmds.MDns
             service.Addresses = hostInfo.Addresses;
         }
 
-        internal Random RandomGenerator = new Random();
-        private static IPEndPoint IPv4EndPoint = new IPEndPoint(IPAddress.Parse("224.0.0.251"), 5353);
-        private bool IsEnabled;
-        private Socket Socket;
-        private int Index;
-        private byte[] Buffer = new byte[9000];
-        private Dictionary<Name, ServiceInfo> PacketServiceInfos = new Dictionary<Name, ServiceInfo>();
-        private Dictionary<Name, List<IPAddress>> PacketHostAddresses = new Dictionary<Name, List<IPAddress>>();
-        private Dictionary<Name, ServiceInfo> ServiceInfos = new Dictionary<Name, ServiceInfo>();
-        private Dictionary<Name, HostInfo> HostInfos = new Dictionary<Name, HostInfo>();
-        private Dictionary<Name, ServiceHandler> ServiceHandlers = new Dictionary<Name, ServiceHandler>();
+        private bool _isEnabled;
+        private Socket _socket;
+        private readonly int _index;
+        private readonly byte[] _buffer = new byte[9000];
+        private readonly Dictionary<Name, ServiceInfo> _packetServiceInfos = new Dictionary<Name, ServiceInfo>();
+        private readonly Dictionary<Name, List<IPAddress>> _packetHostAddresses = new Dictionary<Name, List<IPAddress>>();
+        private readonly Dictionary<Name, ServiceInfo> _serviceInfos = new Dictionary<Name, ServiceInfo>();
+        private readonly Dictionary<Name, HostInfo> _hostInfos = new Dictionary<Name, HostInfo>();
+        private readonly Dictionary<Name, ServiceHandler> _serviceHandlers = new Dictionary<Name, ServiceHandler>();
     }
 }

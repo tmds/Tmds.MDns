@@ -25,7 +25,7 @@ namespace Tmds.MDns
     {
         public Name(string name)
         {
-            _labels = name.Split(new char[] { '.' }).ToList();
+            _labels = name.Split(new[] { '.' }).ToList();
             _name = name;
         }
 
@@ -40,7 +40,7 @@ namespace Tmds.MDns
 
         public Name SubName(int startIndex)
         {
-            Name name = new Name();
+            var name = new Name();
             for (int i = startIndex; i < _labels.Count; i++)
             {
                 name.AddLabel(_labels[i]);
@@ -50,7 +50,7 @@ namespace Tmds.MDns
 
         public Name SubName(int startIndex, int length)
         {
-            Name name = new Name();
+            var name = new Name();
             for (int i = startIndex; i < (startIndex + length); i++)
             {
                 name.AddLabel(_labels[i]);
@@ -62,7 +62,7 @@ namespace Tmds.MDns
         {
             if (_name == null)
             {
-                StringBuilder sb = new StringBuilder(255);
+                var sb = new StringBuilder(255);
                 for (int i = 0; i < _labels.Count; i++)
                 {
                     if (i != 0)
@@ -96,7 +96,7 @@ namespace Tmds.MDns
             get { return _labels.AsReadOnly(); }
         }
 
-        private List<string> _labels = new List<string>();
+        private readonly List<string> _labels = new List<string>();
         private string _name;
     }
 }

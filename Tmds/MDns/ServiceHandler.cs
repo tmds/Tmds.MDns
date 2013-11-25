@@ -16,8 +16,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading;
 
 namespace Tmds.MDns
@@ -28,19 +26,19 @@ namespace Tmds.MDns
         {
             Name = name;
             NetworkInterfaceHandler = networkInterfaceHandler;
-            Timer = new Timer(onTimerElapsed);
+            _timer = new Timer(OnTimerElapsed);
             ServiceInfos = new List<ServiceInfo>();
         }
         
         public void StartBrowse()
         {
-            QueryCount = 0;
-            scheduleTimer(0);
+            _queryCount = 0;
+            ScheduleTimer(0);
         }
 
         public void StopBrowse()
         {
-            scheduleTimer(System.Threading.Timeout.Infinite);
+            ScheduleTimer(Timeout.Infinite);
         }
 
         public Name Name { get; private set; }
@@ -48,13 +46,13 @@ namespace Tmds.MDns
         public List<ServiceInfo> ServiceInfos { get; private set; }
         public ushort LastTransactionId { get; set; }
 
-        private void onTimerElapsed(object obj)
+        private void OnTimerElapsed(object obj)
         {
             QueryParameters queryParameters = NetworkInterfaceHandler.ServiceBrowser.QueryParameters;
             DateTime now = DateTime.Now;
 
             bool sendQuery = false;
-            if (QueryCount < queryParameters.StartQueryCount)
+            if (_queryCount < queryParameters.StartQueryCount)
             {
                 sendQuery = true;
             }
@@ -78,37 +76,31 @@ namespace Tmds.MDns
 
             if (sendQuery)
             {
-                NetworkInterfaceHandler.onServiceQuery(Name);
+                NetworkInterfaceHandler.OnServiceQuery(Name);
 
-                LastTransactionId = (ushort)NetworkInterfaceHandler.RandomGenerator.Next(0, ushort.MaxValue);
+                LastTransactionId = (ushort)_randomGenerator.Next(0, ushort.MaxValue);
                 
-                DnsMessageWriter writer = new DnsMessageWriter();
+                var writer = new DnsMessageWriter();
                 writer.WriteQueryHeader(LastTransactionId);
                 writer.WriteQuestion(Name, RecordType.PTR);
                 
                 var packets = writer.Packets;
-                NetworkInterfaceHandler.send(packets);
+                NetworkInterfaceHandler.Send(packets);
                 
-                QueryCount++;
+                _queryCount++;
             }
 
-            if (QueryCount >= queryParameters.StartQueryCount)
-            {
-                scheduleTimer(queryParameters.QueryInterval);
-            }
-            else
-            {
-                scheduleTimer(queryParameters.StartQueryInterval);
-            }
+            ScheduleTimer(_queryCount >= queryParameters.StartQueryCount ? queryParameters.QueryInterval : queryParameters.StartQueryInterval);
         }
 
-        private void scheduleTimer(int ms)
+        private void ScheduleTimer(int ms)
         {
-            Timer.Change(ms, System.Threading.Timeout.Infinite);
+            _timer.Change(ms, Timeout.Infinite);
         }
 
-        private int QueryCount = 0;
-        private Timer Timer;
+        private int _queryCount;
+        private readonly Timer _timer;
+        private Random _randomGenerator = new Random();
     }
         
 }

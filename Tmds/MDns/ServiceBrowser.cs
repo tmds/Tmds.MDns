@@ -16,12 +16,7 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
 using System.Net.NetworkInformation;
-using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using NetworkInterfaceInformation = System.Net.NetworkInformation.NetworkInterface;
 
@@ -38,20 +33,20 @@ namespace Tmds.MDns
         {
             serviceType = serviceType.ToLower();
             
-            if (ServiceTypes.Contains(serviceType))
+            if (_serviceTypes.Contains(serviceType))
             {
                 return;
             }
-            ServiceTypes.Add(serviceType);
+            _serviceTypes.Add(serviceType);
 
             if (!IsBrowsing)
             {
-                startBrowsing();
+                StartBrowsing();
             }
-            Name name = new Name(serviceType + ".local.");
-            lock (InterfaceHandlers)
+            var name = new Name(serviceType + ".local.");
+            lock (_interfaceHandlers)
             {
-                foreach (var interfaceHandler in InterfaceHandlers)
+                foreach (var interfaceHandler in _interfaceHandlers)
                 {
                     interfaceHandler.Value.StartBrowse(name);
                 }
@@ -67,33 +62,35 @@ namespace Tmds.MDns
         public event EventHandler<ServiceAnnouncementEventArgs> ServiceChanged;
         public event EventHandler<InterfaceDetectedEventArgs> InterfaceDetected;
 
-        internal void onServiceAdded(ServiceInfo service)
+        internal void OnServiceAdded(ServiceInfo service)
         {
             if (ServiceAdded != null)
             {
-                ServiceAnnouncement announcement = new ServiceAnnouncement();
-                announcement.Hostname = service.HostName.Labels[0];
-                announcement.Domain = service.HostName.SubName(1).ToString();
-                announcement.Addresses = service.Addresses;
-                announcement.Instance = service.Name.Labels[0];
-                announcement.NetworkInterface = service.NetworkInterface;
-                announcement.Port = (ushort)service.Port;
-                announcement.Txt = service.Txt;
-                announcement.Type = service.Name.SubName(1, 2).ToString();
-                ServiceAnnouncements.Add(Tuple.Create(service.NetworkInterface.Id, service.Name), announcement);
+                var announcement = new ServiceAnnouncement
+                {
+                    Hostname = service.HostName.Labels[0],
+                    Domain = service.HostName.SubName(1).ToString(),
+                    Addresses = service.Addresses,
+                    Instance = service.Name.Labels[0],
+                    NetworkInterface = service.NetworkInterface,
+                    Port = (ushort)service.Port,
+                    Txt = service.Txt,
+                    Type = service.Name.SubName(1, 2).ToString()
+                };
+                _serviceAnnouncements.Add(Tuple.Create(service.NetworkInterface.Id, service.Name), announcement);
 
-                synchronizationContextPost(o => ServiceAdded(this, new ServiceAnnouncementEventArgs(announcement)));
+                SynchronizationContextPost(o => ServiceAdded(this, new ServiceAnnouncementEventArgs(announcement)));
             }
         }
 
-        internal void onServiceRemoved(ServiceInfo service)
+        internal void OnServiceRemoved(ServiceInfo service)
         {
             if (ServiceRemoved != null)
             {
                 var key = Tuple.Create(service.NetworkInterface.Id, service.Name);
-                ServiceAnnouncement announcement = ServiceAnnouncements[key];
-                ServiceAnnouncements.Remove(key);
-                synchronizationContextPost(o =>
+                ServiceAnnouncement announcement = _serviceAnnouncements[key];
+                _serviceAnnouncements.Remove(key);
+                SynchronizationContextPost(o =>
                 {
                     announcement.IsRemoved = true;
                     ServiceRemoved(this, new ServiceAnnouncementEventArgs(announcement));
@@ -101,22 +98,23 @@ namespace Tmds.MDns
             }
         }
 
-        internal void onServiceChanged(ServiceInfo service)
+        internal void OnServiceChanged(ServiceInfo service)
         {
             if (ServiceChanged != null)
             {
-                ServiceAnnouncement announcement = ServiceAnnouncements[Tuple.Create(service.NetworkInterface.Id, service.Name)];
-                ServiceAnnouncement tmpAnnouncement = new ServiceAnnouncement();
-                tmpAnnouncement.Hostname = service.HostName.Labels[0];
-                tmpAnnouncement.Domain = service.HostName.SubName(1).ToString();
-                tmpAnnouncement.Addresses = service.Addresses;
-                tmpAnnouncement.Instance = service.Name.Labels[0];
-                tmpAnnouncement.NetworkInterface = service.NetworkInterface;
-                tmpAnnouncement.Port = (ushort)service.Port;
-                tmpAnnouncement.Txt = service.Txt;
-                tmpAnnouncement.Type = service.Name.SubName(1, 2).ToString();
-
-                synchronizationContextPost(o =>
+                ServiceAnnouncement announcement = _serviceAnnouncements[Tuple.Create(service.NetworkInterface.Id, service.Name)];
+                var tmpAnnouncement = new ServiceAnnouncement()
+                {
+                    Hostname = service.HostName.Labels[0],
+                    Domain = service.HostName.SubName(1).ToString(),
+                    Addresses = service.Addresses,
+                    Instance = service.Name.Labels[0],
+                    NetworkInterface = service.NetworkInterface,
+                    Port = (ushort)service.Port,
+                    Txt = service.Txt,
+                    Type = service.Name.SubName(1, 2).ToString()
+                };
+                SynchronizationContextPost(o =>
                 {
                     announcement.Hostname = tmpAnnouncement.Hostname;
                     announcement.Domain = tmpAnnouncement.Domain;
@@ -131,7 +129,7 @@ namespace Tmds.MDns
             }
         }
 
-        private void onInterfaceDetect(InterfaceDetectedEventArgs e
+        private void OnInterfaceDetect(InterfaceDetectedEventArgs e
             )
         {
             if (InterfaceDetected != null)
@@ -140,7 +138,7 @@ namespace Tmds.MDns
             }
         }
 
-        private void startBrowsing()
+        private void StartBrowsing()
         {
             if (IsBrowsing)
             {
@@ -150,10 +148,10 @@ namespace Tmds.MDns
 
             if (SynchronizationContext == null)
             {
-                SynchronizationContext = System.Threading.SynchronizationContext.Current;
+                SynchronizationContext = SynchronizationContext.Current;
             }
 
-            InterfaceHandlers = new Dictionary<int, NetworkInterfaceHandler>();
+            _interfaceHandlers = new Dictionary<int, NetworkInterfaceHandler>();
 
             NetworkInterfaceInformation[] interfaceInfos = NetworkInterfaceInformation.GetAllNetworkInterfaces();
             foreach (NetworkInterfaceInformation interfaceInfo in interfaceInfos)
@@ -167,24 +165,26 @@ namespace Tmds.MDns
                     continue;
                 }
 
-                NetworkInterface networkInterface = new NetworkInterface(interfaceInfo);
-                InterfaceDetectedEventArgs e = new InterfaceDetectedEventArgs(networkInterface);
+                var networkInterface = new NetworkInterface(interfaceInfo);
+                var e = new InterfaceDetectedEventArgs(networkInterface)
+                {
+                    Add = true
+                };
 
-                e.Add = true;
-                onInterfaceDetect(e);
+                OnInterfaceDetect(e);
                 if (e.Add)
                 {
                     int index = interfaceInfo.GetIPProperties().GetIPv4Properties().Index;
-                    InterfaceHandlers.Add(index, new NetworkInterfaceHandler(this, networkInterface));
+                    _interfaceHandlers.Add(index, new NetworkInterfaceHandler(this, networkInterface));
                 }
             }
-            NetworkChange.NetworkAddressChanged += checkNetworkInterfaceStatuses;
-            checkNetworkInterfaceStatuses(null, null);
+            NetworkChange.NetworkAddressChanged += CheckNetworkInterfaceStatuses;
+            CheckNetworkInterfaceStatuses(null, null);
         }
 
-        private void checkNetworkInterfaceStatuses(object sender, EventArgs e)
+        private void CheckNetworkInterfaceStatuses(object sender, EventArgs e)
         {
-            lock(InterfaceHandlers)
+            lock(_interfaceHandlers)
             {
                 NetworkInterfaceInformation[] interfaceInfos = NetworkInterfaceInformation.GetAllNetworkInterfaces();
                 foreach (NetworkInterfaceInformation interfaceInfo in interfaceInfos)
@@ -199,8 +199,8 @@ namespace Tmds.MDns
                     }
 
                     int index = interfaceInfo.GetIPProperties().GetIPv4Properties().Index;
-                    NetworkInterfaceHandler interfaceHandler = null;
-                    InterfaceHandlers.TryGetValue(index, out interfaceHandler);
+                    NetworkInterfaceHandler interfaceHandler;
+                    _interfaceHandlers.TryGetValue(index, out interfaceHandler);
                     if (interfaceHandler != null)
                     {
                         if (interfaceInfo.OperationalStatus == OperationalStatus.Up)
@@ -216,7 +216,7 @@ namespace Tmds.MDns
             }
         }
 
-        private void synchronizationContextPost(SendOrPostCallback cb)
+        private void SynchronizationContextPost(SendOrPostCallback cb)
         {
             if (SynchronizationContext != null)
             {
@@ -228,8 +228,8 @@ namespace Tmds.MDns
             }
         }
 
-        private Dictionary<Tuple<string, Name>, ServiceAnnouncement> ServiceAnnouncements = new Dictionary<Tuple<string, Name>, ServiceAnnouncement>();
-        private List<string> ServiceTypes = new List<string>();
-        private Dictionary<int, NetworkInterfaceHandler> InterfaceHandlers;
+        private readonly Dictionary<Tuple<string, Name>, ServiceAnnouncement> _serviceAnnouncements = new Dictionary<Tuple<string, Name>, ServiceAnnouncement>();
+        private readonly List<string> _serviceTypes = new List<string>();
+        private Dictionary<int, NetworkInterfaceHandler> _interfaceHandlers;
     }
 }

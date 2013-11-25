@@ -17,7 +17,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Text;
 
@@ -81,7 +80,7 @@ namespace Tmds.MDns
 
         public Header ReadHeader()
         {
-            ushort transactionID = ReadUInt16();
+            ushort transactionId = ReadUInt16();
             ushort flags = ReadUInt16();
             ushort questionCount = ReadUInt16();
             ushort answerCount = ReadUInt16();
@@ -89,7 +88,7 @@ namespace Tmds.MDns
             ushort additionalCount = ReadUInt16();
 
             return new Header { 
-                TransactionID = transactionID,
+                TransactionID = transactionId,
                 Flags = flags,
                 QuestionCount = questionCount,
                 AnswerCount = answerCount,
@@ -114,7 +113,7 @@ namespace Tmds.MDns
 
         public RecordHeader ReadRecordHeader()
         {
-            if (NextRecord > 0)
+            if (_nextRecord > 0)
             {
                 SkipRecordBytes();
             }
@@ -124,10 +123,10 @@ namespace Tmds.MDns
             ushort _class = ReadUInt16();
             uint ttl = ReadUInt32();
             ushort rdLength = ReadUInt16();
-            RecordLength = rdLength;
-            NextRecord = (int)(BaseStream.Position + rdLength);
+            _recordLength = rdLength;
+            _nextRecord = (int)(BaseStream.Position + rdLength);
             
-            return new RecordHeader()
+            return new RecordHeader
             {
                 Name = name,
                 Type = (RecordType)type,
@@ -139,24 +138,24 @@ namespace Tmds.MDns
 
         public byte[] ReadRecordBytes()
         {
-            return ReadBytes(RecordLength);
+            return ReadBytes(_recordLength);
         }
 
         public void SkipRecordBytes()
         {
-            BaseStream.Seek(NextRecord, SeekOrigin.Begin);
+            BaseStream.Seek(_nextRecord, SeekOrigin.Begin);
         }
 
         public IPAddress ReadARecord()
         {
-            return new IPAddress(ReadBytes(RecordLength));
+            return new IPAddress(ReadBytes(_recordLength));
         }
 
         public List<string> ReadTxtRecord()
         {
-            List<string> txts = new List<string>();
-            byte txtLength = 0;
-            int rdLength = RecordLength;
+            var txts = new List<string>();
+            byte txtLength;
+            int rdLength = _recordLength;
             
             while ((rdLength > 0) && ((txtLength = ReadByte()) != 0))
             {
@@ -175,7 +174,7 @@ namespace Tmds.MDns
             ushort port = ReadUInt16();
             Name target = ReadName();
             
-            return new SrvRecord()
+            return new SrvRecord
             {
                 Priority = priority,
                 Weight = weight,
@@ -198,15 +197,12 @@ namespace Tmds.MDns
             {
                 return (byte)i;
             }
-            else
-            {
-                throw new Exception();
-            }
+            throw new Exception();
         }
 
         private byte[] ReadBytes(int length)
         {
-            byte[] buffer = new byte[length];
+            var buffer = new byte[length];
             int offset = 0;
             
             while (length > 0)
@@ -272,7 +268,7 @@ namespace Tmds.MDns
             }
         }
 
-        private int RecordLength = -1;
-        private int NextRecord = 0;
+        private int _recordLength = -1;
+        private int _nextRecord;
     }
 }
