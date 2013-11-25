@@ -64,73 +64,74 @@ namespace Tmds.MDns
 
         internal void OnServiceAdded(ServiceInfo service)
         {
-            if (ServiceAdded != null)
+            var announcement = new ServiceAnnouncement
             {
-                var announcement = new ServiceAnnouncement
+                Hostname = service.HostName.Labels[0],
+                Domain = service.HostName.SubName(1).ToString(),
+                Addresses = service.Addresses,
+                Instance = service.Name.Labels[0],
+                NetworkInterface = service.NetworkInterface,
+                Port = (ushort)service.Port,
+                Txt = service.Txt,
+                Type = service.Name.SubName(1, 2).ToString()
+            };
+            _serviceAnnouncements.Add(Tuple.Create(service.NetworkInterface.Id, service.Name), announcement);
+            SynchronizationContextPost(o =>
+            {
+                if (ServiceAdded != null)
                 {
-                    Hostname = service.HostName.Labels[0],
-                    Domain = service.HostName.SubName(1).ToString(),
-                    Addresses = service.Addresses,
-                    Instance = service.Name.Labels[0],
-                    NetworkInterface = service.NetworkInterface,
-                    Port = (ushort)service.Port,
-                    Txt = service.Txt,
-                    Type = service.Name.SubName(1, 2).ToString()
-                };
-                _serviceAnnouncements.Add(Tuple.Create(service.NetworkInterface.Id, service.Name), announcement);
-
-                SynchronizationContextPost(o => ServiceAdded(this, new ServiceAnnouncementEventArgs(announcement)));
-            }
+                    ServiceAdded(this, new ServiceAnnouncementEventArgs(announcement));
+                }
+            });
         }
 
         internal void OnServiceRemoved(ServiceInfo service)
         {
-            if (ServiceRemoved != null)
+            var key = Tuple.Create(service.NetworkInterface.Id, service.Name);
+            ServiceAnnouncement announcement = _serviceAnnouncements[key];
+            _serviceAnnouncements.Remove(key);
+            SynchronizationContextPost(o =>
             {
-                var key = Tuple.Create(service.NetworkInterface.Id, service.Name);
-                ServiceAnnouncement announcement = _serviceAnnouncements[key];
-                _serviceAnnouncements.Remove(key);
-                SynchronizationContextPost(o =>
+                announcement.IsRemoved = true;
+                if (ServiceRemoved != null)
                 {
-                    announcement.IsRemoved = true;
                     ServiceRemoved(this, new ServiceAnnouncementEventArgs(announcement));
-                });
-            }
+                }
+            });
         }
 
         internal void OnServiceChanged(ServiceInfo service)
         {
-            if (ServiceChanged != null)
+            ServiceAnnouncement announcement = _serviceAnnouncements[Tuple.Create(service.NetworkInterface.Id, service.Name)];
+            var tmpAnnouncement = new ServiceAnnouncement()
             {
-                ServiceAnnouncement announcement = _serviceAnnouncements[Tuple.Create(service.NetworkInterface.Id, service.Name)];
-                var tmpAnnouncement = new ServiceAnnouncement()
+                Hostname = service.HostName.Labels[0],
+                Domain = service.HostName.SubName(1).ToString(),
+                Addresses = service.Addresses,
+                Instance = service.Name.Labels[0],
+                NetworkInterface = service.NetworkInterface,
+                Port = (ushort)service.Port,
+                Txt = service.Txt,
+                Type = service.Name.SubName(1, 2).ToString()
+            };
+            SynchronizationContextPost(o =>
+            {
+                announcement.Hostname = tmpAnnouncement.Hostname;
+                announcement.Domain = tmpAnnouncement.Domain;
+                announcement.Addresses = tmpAnnouncement.Addresses;
+                announcement.Instance = tmpAnnouncement.Instance;
+                announcement.NetworkInterface = tmpAnnouncement.NetworkInterface;
+                announcement.Port = tmpAnnouncement.Port;
+                announcement.Txt = tmpAnnouncement.Txt;
+                announcement.Type = tmpAnnouncement.Type;
+                if (ServiceChanged != null)
                 {
-                    Hostname = service.HostName.Labels[0],
-                    Domain = service.HostName.SubName(1).ToString(),
-                    Addresses = service.Addresses,
-                    Instance = service.Name.Labels[0],
-                    NetworkInterface = service.NetworkInterface,
-                    Port = (ushort)service.Port,
-                    Txt = service.Txt,
-                    Type = service.Name.SubName(1, 2).ToString()
-                };
-                SynchronizationContextPost(o =>
-                {
-                    announcement.Hostname = tmpAnnouncement.Hostname;
-                    announcement.Domain = tmpAnnouncement.Domain;
-                    announcement.Addresses = tmpAnnouncement.Addresses;
-                    announcement.Instance = tmpAnnouncement.Instance;
-                    announcement.NetworkInterface = tmpAnnouncement.NetworkInterface;
-                    announcement.Port = tmpAnnouncement.Port;
-                    announcement.Txt = tmpAnnouncement.Txt;
-                    announcement.Type = tmpAnnouncement.Type;
                     ServiceChanged(this, new ServiceAnnouncementEventArgs(announcement));
-                });
-            }
+                }
+            });
         }
 
-        private void OnInterfaceDetect(InterfaceDetectedEventArgs e
-            )
+        private void OnInterfaceDetect(InterfaceDetectedEventArgs e)
         {
             if (InterfaceDetected != null)
             {
