@@ -48,49 +48,51 @@ namespace Tmds.MDns
 
         private void OnTimerElapsed(object obj)
         {
-            QueryParameters queryParameters = NetworkInterfaceHandler.ServiceBrowser.QueryParameters;
-            DateTime now = DateTime.Now;
+            lock (NetworkInterfaceHandler)
+            {
+                QueryParameters queryParameters = NetworkInterfaceHandler.ServiceBrowser.QueryParameters;
+                DateTime now = DateTime.Now;
 
-            bool sendQuery = false;
-            if (_queryCount < queryParameters.StartQueryCount)
-            {
-                sendQuery = true;
-            }
-            else
-            {
-                if (ServiceInfos.Count == 0)
+                bool sendQuery = false;
+                if (_queryCount < queryParameters.StartQueryCount)
                 {
                     sendQuery = true;
                 }
                 else
                 {
-                    foreach (ServiceInfo service in ServiceInfos)
+                    if (ServiceInfos.Count == 0)
                     {
-                        if (service.LastQueryTime <= (now - new TimeSpan(0, 0, 0, 0, queryParameters.QueryInterval)))
+                        sendQuery = true;
+                    }
+                    else
+                    {
+                        foreach (ServiceInfo service in ServiceInfos)
                         {
-                            sendQuery = true;
+                            if (service.LastQueryTime <= now.AddMilliseconds(-queryParameters.QueryInterval))
+                            {
+                                sendQuery = true;
+                            }
                         }
                     }
                 }
+
+                if (sendQuery)
+                {
+                    NetworkInterfaceHandler.OnServiceQuery(Name);
+                    LastTransactionId = (ushort)_randomGenerator.Next(0, ushort.MaxValue);
+
+                    var writer = new DnsMessageWriter();
+                    writer.WriteQueryHeader(LastTransactionId);
+                    writer.WriteQuestion(Name, RecordType.PTR);
+
+                    var packets = writer.Packets;
+                    NetworkInterfaceHandler.Send(packets);
+
+                    _queryCount++;
+                }
+
+                ScheduleTimer(_queryCount >= queryParameters.StartQueryCount ? queryParameters.QueryInterval : queryParameters.StartQueryInterval);
             }
-
-            if (sendQuery)
-            {
-                NetworkInterfaceHandler.OnServiceQuery(Name);
-
-                LastTransactionId = (ushort)_randomGenerator.Next(0, ushort.MaxValue);
-                
-                var writer = new DnsMessageWriter();
-                writer.WriteQueryHeader(LastTransactionId);
-                writer.WriteQuestion(Name, RecordType.PTR);
-                
-                var packets = writer.Packets;
-                NetworkInterfaceHandler.Send(packets);
-                
-                _queryCount++;
-            }
-
-            ScheduleTimer(_queryCount >= queryParameters.StartQueryCount ? queryParameters.QueryInterval : queryParameters.StartQueryInterval);
         }
 
         private void ScheduleTimer(int ms)

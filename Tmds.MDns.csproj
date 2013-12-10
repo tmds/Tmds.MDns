@@ -41,6 +41,7 @@
     <Compile Include="Tmds\MDns\NetworkInterfaceHandler.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Tmds\MDns\QueryParameters.cs" />
+    <Compile Include="Tmds\MDns\ReadOnlyCollectionWrapper.cs" />
     <Compile Include="Tmds\MDns\RecordClass.cs" />
     <Compile Include="Tmds\MDns\RecordSection.cs" />
     <Compile Include="Tmds\MDns\RecordType.cs" />

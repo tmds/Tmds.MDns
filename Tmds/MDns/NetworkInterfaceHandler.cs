@@ -114,18 +114,15 @@ namespace Tmds.MDns
 
         internal void Send(IList<ArraySegment<byte>> packets)
         {
-            lock (this)
+            try
             {
-                try
+                foreach (ArraySegment<byte> segment in packets)
                 {
-                    foreach (ArraySegment<byte> segment in packets)
-                    {
-                        _socket.SendTo(segment.Array, segment.Offset, segment.Count, SocketFlags.None, IPv4EndPoint);
-                    }
+                    _socket.SendTo(segment.Array, segment.Offset, segment.Count, SocketFlags.None, IPv4EndPoint);
                 }
-                catch
-                {}
             }
+            catch
+            { }
         }
 
         internal void OnServiceQuery(Name serviceName)

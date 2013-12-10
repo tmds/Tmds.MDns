@@ -27,6 +27,7 @@ namespace Tmds.MDns
         public ServiceBrowser()
         {
             QueryParameters = new QueryParameters();
+            Services = new ReadOnlyCollectionWrapper<ServiceAnnouncement>(_services);
         }
 
         public void StartBrowse(string serviceType)
@@ -56,7 +57,7 @@ namespace Tmds.MDns
         public QueryParameters QueryParameters { get; private set; }
         public SynchronizationContext SynchronizationContext { get; set; }
         public bool IsBrowsing { get; private set; }
-        public IEnumerator<ServiceAnnouncement> Services { get { return _services.GetEnumerator(); } }
+        public ICollection<ServiceAnnouncement> Services { private set; get; }
 
         public event EventHandler<ServiceAnnouncementEventArgs> ServiceAdded;
         public event EventHandler<ServiceAnnouncementEventArgs> ServiceRemoved;
