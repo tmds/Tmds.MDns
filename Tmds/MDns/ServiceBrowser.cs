@@ -18,6 +18,7 @@ using System;
 using System.Collections.Generic;
 using System.Net.NetworkInformation;
 using System.Threading;
+using System.Linq;
 using NetworkInterfaceInformation = System.Net.NetworkInformation.NetworkInterface;
 
 namespace Tmds.MDns
@@ -32,25 +33,19 @@ namespace Tmds.MDns
 
         public void StartBrowse(string serviceType)
         {
-            serviceType = serviceType.ToLower();
-            
-            if (_serviceTypes.Contains(serviceType))
-            {
-                return;
-            }
-            _serviceTypes.Add(serviceType);
+            StartBrowse(new [] { serviceType });
+        }
 
-            if (!IsBrowsing)
+        public void StartBrowse(IEnumerable<string> serviceTypes)
+        {
+            if (IsBrowsing)
             {
-                StartBrowsing();
+                throw new Exception("Already browsing");
             }
-            var name = new Name(serviceType + ".local.");
-            lock (_interfaceHandlers)
+            StartBrowsing();
+            foreach (var interfaceHandler in _interfaceHandlers)
             {
-                foreach (var interfaceHandler in _interfaceHandlers)
-                {
-                    interfaceHandler.Value.StartBrowse(name);
-                }
+                interfaceHandler.Value.StartBrowse(serviceTypes.Select(st => new Name(st.ToLower() + ".local.")));
             }
         }
 
@@ -241,7 +236,6 @@ namespace Tmds.MDns
 
         private readonly HashSet<ServiceAnnouncement> _services = new HashSet<ServiceAnnouncement>();
         private readonly Dictionary<Tuple<string, Name>, ServiceAnnouncement> _serviceAnnouncements = new Dictionary<Tuple<string, Name>, ServiceAnnouncement>();
-        private readonly List<string> _serviceTypes = new List<string>();
         private Dictionary<int, NetworkInterfaceHandler> _interfaceHandlers;
     }
 }

@@ -32,15 +32,19 @@ namespace Tmds.MDns
             ServiceBrowser = serviceBrowser;
             NetworkInterface = networkInterface;
             _index = NetworkInterface.Information.GetIPProperties().GetIPv4Properties().Index;
+            _queryTimer = new Timer(OnQueryTimerElapsed);
         }
 
-        public void StartBrowse(Name name)
+        public void StartBrowse(IEnumerable<Name> names)
         {
-            var serviceHandler = new ServiceHandler(this, name);
-            _serviceHandlers.Add(name, serviceHandler);
+            foreach (var name in names)
+            {
+                var serviceHandler = new ServiceHandler(this, name);
+                _serviceHandlers.Add(name, serviceHandler);
+            }
             if (_isEnabled)
             {
-                serviceHandler.StartBrowse();
+                StartQuery();
             }
         }
 
@@ -64,11 +68,7 @@ namespace Tmds.MDns
                 _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
                 
                 StartReceive();
-
-                foreach (var serviceHandlerKV in _serviceHandlers)
-                {
-                    serviceHandlerKV.Value.StartBrowse();
-                }
+                StartQuery();
             }
         }
 
@@ -83,10 +83,11 @@ namespace Tmds.MDns
             {
                 _isEnabled = false;
 
+                StopQuery();
+
                 foreach (var serviceHandlerKV in _serviceHandlers)
                 {
                     ServiceHandler serviceHandler = serviceHandlerKV.Value;
-                    serviceHandler.StopBrowse();
                     serviceHandler.ServiceInfos.Clear();
                 }
 
@@ -188,15 +189,18 @@ namespace Tmds.MDns
                 var reader = new DnsMessageReader(stream);
                 Header header = reader.ReadHeader();
 
-                if (header.IsQuery && header.QuestionCount == 1 && header.AnswerCount == 0)
+                if (header.IsQuery && header.AnswerCount == 0)
                 {
-                    Question question = reader.ReadQuestion();
-                    Name serviceName = question.QName;
-                    if (_serviceHandlers.ContainsKey(serviceName))
+                    for (int i = 0; i < header.QuestionCount; i++)
                     {
-                        if (header.TransactionID != _serviceHandlers[serviceName].LastTransactionId)
+                        Question question = reader.ReadQuestion();
+                        Name serviceName = question.QName;
+                        if (_serviceHandlers.ContainsKey(serviceName))
                         {
-                            OnServiceQuery(serviceName);
+                            if (header.TransactionID != _lastQueryId)
+                            {
+                                OnServiceQuery(serviceName);
+                            }
                         }
                     }
                 }
@@ -499,6 +503,91 @@ namespace Tmds.MDns
             service.Addresses = hostInfo.Addresses;
         }
 
+        private void StartQuery()
+        {
+            _queryCount = 0;
+            ScheduleQueryTimer(0);
+        }
+
+        private void StopQuery()
+        {
+            ScheduleQueryTimer(Timeout.Infinite);
+        }
+
+        private void OnQueryTimerElapsed(object obj)
+        {
+            lock (this)
+            {
+                QueryParameters queryParameters = ServiceBrowser.QueryParameters;
+                DateTime now = DateTime.Now;
+
+                bool sendQuery = false;
+                _lastQueryId = (ushort)_randomGenerator.Next(0, ushort.MaxValue);
+                var writer = new DnsMessageWriter();
+                writer.WriteQueryHeader(_lastQueryId);
+
+                foreach (var serviceKV in _serviceHandlers)
+                {
+                    Name Name = serviceKV.Key;
+                    var ServiceInfos = serviceKV.Value.ServiceInfos;
+                    bool sendQueryForService = false;
+                    if (_queryCount < queryParameters.StartQueryCount)
+                    {
+                        sendQueryForService = true;
+                    }
+                    else
+                    {
+                        if (ServiceInfos.Count == 0)
+                        {
+                            sendQueryForService = true;
+                        }
+                        else
+                        {
+                            foreach (ServiceInfo service in ServiceInfos)
+                            {
+                                if (service.LastQueryTime <= now.AddMilliseconds(-queryParameters.QueryInterval))
+                                {
+                                    sendQueryForService = true;
+                                }
+                            }
+                        }
+                    }
+                    if (sendQueryForService)
+                    {
+                        OnServiceQuery(Name);
+                        writer.WriteQuestion(Name, RecordType.PTR);
+                    }
+                    sendQuery = sendQuery || sendQueryForService;
+                }
+
+                foreach (var hostKV in _hostInfos)
+                {
+                    var name = hostKV.Key;
+                    var adresses = hostKV.Value.Addresses;
+                    if (hostKV.Value.Addresses == null)
+                    {
+                        writer.WriteQuestion(name, RecordType.All);
+                        sendQuery = true;
+                    }
+                }
+
+                if (sendQuery)
+                {
+                    var packets = writer.Packets;
+                    Send(packets);
+
+                    _queryCount++;
+                }
+
+                ScheduleQueryTimer(_queryCount >= queryParameters.StartQueryCount ? queryParameters.QueryInterval : queryParameters.StartQueryInterval);
+            }
+        }
+
+        private void ScheduleQueryTimer(int ms)
+        {
+            _queryTimer.Change(ms, Timeout.Infinite);
+        }
+
         private bool _isEnabled;
         private Socket _socket;
         private readonly int _index;
@@ -508,5 +597,9 @@ namespace Tmds.MDns
         private readonly Dictionary<Name, ServiceInfo> _serviceInfos = new Dictionary<Name, ServiceInfo>();
         private readonly Dictionary<Name, HostInfo> _hostInfos = new Dictionary<Name, HostInfo>();
         private readonly Dictionary<Name, ServiceHandler> _serviceHandlers = new Dictionary<Name, ServiceHandler>();
+        private int _queryCount;
+        private readonly Timer _queryTimer;
+        private Random _randomGenerator = new Random();
+        private ushort _lastQueryId;
     }
 }
