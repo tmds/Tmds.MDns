@@ -220,6 +220,10 @@ namespace Tmds.MDns
                         if ((recordHeader.Type == RecordType.A) || (recordHeader.Type == RecordType.AAAA)) // A or AAAA
                         {
                             IPAddress address = reader.ReadARecord();
+                            if (address.AddressFamily == AddressFamily.InterNetworkV6)
+                            {
+                                address.ScopeId = NetworkInterface.Information.GetIPProperties().GetIPv6Properties().Index;
+                            }
                             OnARecord(recordHeader.Name, address, recordHeader.Ttl);
                         }
                         else if ((recordHeader.Type == RecordType.SRV) ||
@@ -271,24 +275,32 @@ namespace Tmds.MDns
 
         private void OnARecord(Name name, IPAddress address, uint ttl)
         {
-            if (ttl == 0)
+            HostAddresses hostAddresses;
+            bool found = _packetHostAddresses.TryGetValue(name, out hostAddresses);
+            if (!found)
             {
-                _packetHostAddresses.Remove(name);
-                _packetHostAddresses.Add(name, null);
+                hostAddresses = new HostAddresses();
+                _packetHostAddresses.Add(name, hostAddresses);
             }
-            else
+            List<IPAddress> addresses = null;
+            if (address.AddressFamily == AddressFamily.InterNetwork)
             {
-                List<IPAddress> addresses;
-                bool found = _packetHostAddresses.TryGetValue(name, out addresses);
-                if (addresses == null)
+                if (hostAddresses.IPv4Addresses == null)
                 {
-                    if (found)
-                    {
-                        _packetServiceInfos.Remove(name);
-                    }
-                    addresses = new List<IPAddress>();
-                    _packetHostAddresses.Add(name, addresses);
+                    hostAddresses.IPv4Addresses = new List<IPAddress>();
                 }
+                addresses = hostAddresses.IPv4Addresses;
+            }
+            else if (address.AddressFamily == AddressFamily.InterNetworkV6)
+            {
+                if (hostAddresses.IPv6Addresses == null)
+                {
+                    hostAddresses.IPv6Addresses = new List<IPAddress>();
+                }
+                addresses = hostAddresses.IPv6Addresses;
+            }
+            if (ttl != 0)
+            {
                 addresses.Add(address);
             }
         }
@@ -320,7 +332,7 @@ namespace Tmds.MDns
             foreach (var hostAddressKV in _packetHostAddresses)
             {
                 Name name = hostAddressKV.Key;
-                List<IPAddress> packetAddresses = hostAddressKV.Value;
+                HostAddresses hostAddresses = hostAddressKV.Value;
 
                 HostInfo hostInfo;
                 _hostInfos.TryGetValue(name, out hostInfo);
@@ -329,7 +341,31 @@ namespace Tmds.MDns
                     return;
                 }
 
-                if (packetAddresses == null)
+                List<IPAddress> packetAddresses = new List<IPAddress>();
+                if (hostAddresses.IPv4Addresses == null)
+                {
+                    if (hostInfo.Addresses != null)
+                    {
+                        packetAddresses.AddRange(hostInfo.Addresses.Where(a => a.AddressFamily == AddressFamily.InterNetwork));
+                    }
+                }
+                else
+                {
+                    packetAddresses.AddRange(hostAddresses.IPv4Addresses);
+                }
+                if (hostAddresses.IPv6Addresses == null)
+                {
+                    if (hostInfo.Addresses != null)
+                    {
+                        packetAddresses.AddRange(hostInfo.Addresses.Where(a => a.AddressFamily == AddressFamily.InterNetworkV6));
+                    }
+                }
+                else
+                {
+                    packetAddresses.AddRange(hostAddresses.IPv6Addresses);
+                }
+
+                if (packetAddresses.Count == 0)
                 {
                     _hostInfos.Remove(name);
                     foreach (var service in hostInfo.ServiceInfos)
@@ -491,9 +527,19 @@ namespace Tmds.MDns
             if (hostInfo == null)
             {
                 hostInfo = new HostInfo();
-                List<IPAddress> addresses;
-                _packetHostAddresses.TryGetValue(hostname, out addresses);
-                hostInfo.Addresses = addresses;
+                HostAddresses hostAddresses;
+                if (_packetHostAddresses.TryGetValue(hostname, out hostAddresses))
+                {
+                    hostInfo.Addresses = hostAddresses.IPv4Addresses;
+                    if (hostInfo.Addresses == null)
+                    {
+                        hostInfo.Addresses = hostAddresses.IPv6Addresses;
+                    }
+                    else if (hostAddresses.IPv6Addresses != null)
+                    {
+                        hostInfo.Addresses.AddRange(hostAddresses.IPv6Addresses);
+                    }
+                }
                 _hostInfos.Add(hostname, hostInfo);
             }
             
@@ -566,7 +612,8 @@ namespace Tmds.MDns
                     var adresses = hostKV.Value.Addresses;
                     if (hostKV.Value.Addresses == null)
                     {
-                        writer.WriteQuestion(name, RecordType.All);
+                        writer.WriteQuestion(name, RecordType.A);
+                        writer.WriteQuestion(name, RecordType.AAAA);
                         sendQuery = true;
                     }
                 }
@@ -593,7 +640,7 @@ namespace Tmds.MDns
         private readonly int _index;
         private readonly byte[] _buffer = new byte[9000];
         private readonly Dictionary<Name, ServiceInfo> _packetServiceInfos = new Dictionary<Name, ServiceInfo>();
-        private readonly Dictionary<Name, List<IPAddress>> _packetHostAddresses = new Dictionary<Name, List<IPAddress>>();
+        private readonly Dictionary<Name, HostAddresses> _packetHostAddresses = new Dictionary<Name, HostAddresses>();
         private readonly Dictionary<Name, ServiceInfo> _serviceInfos = new Dictionary<Name, ServiceInfo>();
         private readonly Dictionary<Name, HostInfo> _hostInfos = new Dictionary<Name, HostInfo>();
         private readonly Dictionary<Name, ServiceHandler> _serviceHandlers = new Dictionary<Name, ServiceHandler>();

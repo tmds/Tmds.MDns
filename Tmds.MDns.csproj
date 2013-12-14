@@ -32,6 +32,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Tmds\MDns\HostAddresses.cs" />
     <Compile Include="Tmds\MDns\DnsMessageReader.cs" />
     <Compile Include="Tmds\MDns\DnsMessageWriter.cs" />
     <Compile Include="Tmds\MDns\HostInfo.cs" />
