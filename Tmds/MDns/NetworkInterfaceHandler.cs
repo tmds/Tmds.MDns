@@ -20,6 +20,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Threading;
 
@@ -222,6 +223,10 @@ namespace Tmds.MDns
                             IPAddress address = reader.ReadARecord();
                             if (address.AddressFamily == AddressFamily.InterNetworkV6)
                             {
+                                if (!NetworkInterface.Information.Supports(NetworkInterfaceComponent.IPv6))
+                                {
+                                    continue;
+                                }
                                 address.ScopeId = NetworkInterface.Information.GetIPProperties().GetIPv6Properties().Index;
                             }
                             OnARecord(recordHeader.Name, address, recordHeader.Ttl);
