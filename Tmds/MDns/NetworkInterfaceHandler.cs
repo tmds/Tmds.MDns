@@ -215,7 +215,7 @@ namespace Tmds.MDns
                     _packetServiceInfos.Clear();
                     _packetHostAddresses.Clear();
 
-                    for (int i = 0; i < header.AnswerCount; i++)
+                    for (int i = 0; i < (header.AnswerCount + header.AuthorityCount + header.AdditionalCount); i++)
                     {
                         RecordHeader recordHeader = reader.ReadRecordHeader();
                         if ((recordHeader.Type == RecordType.A) || (recordHeader.Type == RecordType.AAAA)) // A or AAAA
