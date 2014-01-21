@@ -72,7 +72,10 @@ namespace Tmds.MDns
                 Txt = service.Txt,
                 Type = service.Name.SubName(1, 2).ToString()
             };
-            _serviceAnnouncements.Add(Tuple.Create(service.NetworkInterface.Id, service.Name), announcement);
+            lock (_serviceAnnouncements)
+            {
+                _serviceAnnouncements.Add(Tuple.Create(service.NetworkInterface.Id, service.Name), announcement);
+            }
             SynchronizationContextPost(o =>
             {
                 lock (_services)
@@ -89,8 +92,12 @@ namespace Tmds.MDns
         internal void OnServiceRemoved(ServiceInfo service)
         {
             var key = Tuple.Create(service.NetworkInterface.Id, service.Name);
-            ServiceAnnouncement announcement = _serviceAnnouncements[key];
-            _serviceAnnouncements.Remove(key);
+            ServiceAnnouncement announcement;
+            lock (_serviceAnnouncements)
+            {
+                announcement = _serviceAnnouncements[key];
+                _serviceAnnouncements.Remove(key);
+            }
             SynchronizationContextPost(o =>
             {
                 announcement.IsRemoved = true;
@@ -107,7 +114,11 @@ namespace Tmds.MDns
 
         internal void OnServiceChanged(ServiceInfo service)
         {
-            ServiceAnnouncement announcement = _serviceAnnouncements[Tuple.Create(service.NetworkInterface.Id, service.Name)];
+            ServiceAnnouncement announcement;
+            lock (_serviceAnnouncements)
+            {
+                announcement = _serviceAnnouncements[Tuple.Create(service.NetworkInterface.Id, service.Name)];
+            }
             var tmpAnnouncement = new ServiceAnnouncement()
             {
                 Hostname = service.HostName.Labels[0],
