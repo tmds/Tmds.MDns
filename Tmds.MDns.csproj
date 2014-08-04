@@ -36,9 +36,9 @@
     <Compile Include="Tmds\MDns\DnsMessageReader.cs" />
     <Compile Include="Tmds\MDns\DnsMessageWriter.cs" />
     <Compile Include="Tmds\MDns\HostInfo.cs" />
-    <Compile Include="Tmds\MDns\InterfaceDetectEventArgs.cs" />
     <Compile Include="Tmds\MDns\Label.cs" />
     <Compile Include="Tmds\MDns\NetworkInterface.cs" />
+    <Compile Include="Tmds\MDns\NetworkInterfaceEventArgs.cs" />
     <Compile Include="Tmds\MDns\NetworkInterfaceHandler.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Tmds\MDns\QueryParameters.cs" />

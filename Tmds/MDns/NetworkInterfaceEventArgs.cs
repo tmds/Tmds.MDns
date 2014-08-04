@@ -18,14 +18,13 @@ using System;
 
 namespace Tmds.MDns
 {
-    public class InterfaceDetectedEventArgs : EventArgs
+    public class NetworkInterfaceEventArgs : EventArgs
     {
-        public InterfaceDetectedEventArgs(NetworkInterface nic)
+        public NetworkInterfaceEventArgs(NetworkInterface networkInterface)
         {
-            NetworkInterface = nic;
+            NetworkInterface = networkInterface;
         }
 
-        public bool Add { get; set; }
-        public NetworkInterface NetworkInterface { get; private set; }
+        public NetworkInterface NetworkInterface { private set; get; }
     }
 }

@@ -112,6 +112,7 @@ namespace Tmds.MDns
 
         public ServiceBrowser ServiceBrowser { get; private set; }
         public NetworkInterface NetworkInterface { get; private set; }
+        public int Index { get { return _index; } }
         public static readonly IPEndPoint IPv4EndPoint = new IPEndPoint(IPAddress.Parse("224.0.0.251"), 5353);
 
         internal void Send(IList<ArraySegment<byte>> packets)
