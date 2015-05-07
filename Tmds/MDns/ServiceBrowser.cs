@@ -46,6 +46,28 @@ namespace Tmds.MDns
             StartBrowsing(synchronizationContext);
         }
 
+        public void StopBrowse()
+        {
+            if (!IsBrowsing)
+            {
+                return;
+            }
+            IsBrowsing = false;
+
+            NetworkChange.NetworkAddressChanged -= _networkAddressChangedEventHandler;
+            lock (_interfaceHandlers)
+            {
+                foreach (var interfaceHandler in _interfaceHandlers.Values)
+                {
+                    interfaceHandler.Disable();
+                    OnNetworkInterfaceRemoved(interfaceHandler.NetworkInterface);
+                }
+                _interfaceHandlers = null;
+            }
+            _serviceTypes.Clear();
+            SynchronizationContext = null;
+        }
+
         public void StartBrowse(IEnumerable<string> serviceTypes, bool useSynchronizationContext = true)
         {
             if (useSynchronizationContext)
@@ -193,15 +215,25 @@ namespace Tmds.MDns
             IsBrowsing = true;
             SynchronizationContext = synchronizationContext;
 
-            _interfaceHandlers = new Dictionary<int, NetworkInterfaceHandler>();
-            NetworkChange.NetworkAddressChanged += CheckNetworkInterfaceStatuses;
-            CheckNetworkInterfaceStatuses(null, null);
+            Dictionary<int, NetworkInterfaceHandler> interfaceHandlers = new Dictionary<int, NetworkInterfaceHandler>();
+            _interfaceHandlers = interfaceHandlers;
+            _networkAddressChangedEventHandler = (s, e) =>
+            {
+                CheckNetworkInterfaceStatuses(interfaceHandlers);
+            };
+            NetworkChange.NetworkAddressChanged += _networkAddressChangedEventHandler;
+            CheckNetworkInterfaceStatuses(interfaceHandlers);
         }
 
-        private void CheckNetworkInterfaceStatuses(object sender, EventArgs ev)
+        private void CheckNetworkInterfaceStatuses(Dictionary<int, NetworkInterfaceHandler> interfaceHandlers)
         {
-            lock(_interfaceHandlers)
+            lock (interfaceHandlers)
             {
+                if (interfaceHandlers != _interfaceHandlers)
+                {
+                    return;
+                }
+
                 HashSet<NetworkInterfaceHandler> handlers = new HashSet<NetworkInterfaceHandler>(_interfaceHandlers.Values);
                 NetworkInterfaceInformation[] interfaceInfos = NetworkInterfaceInformation.GetAllNetworkInterfaces();
                 foreach (NetworkInterfaceInformation interfaceInfo in interfaceInfos)
@@ -261,6 +293,7 @@ namespace Tmds.MDns
         private readonly HashSet<ServiceAnnouncement> _services = new HashSet<ServiceAnnouncement>();
         private readonly Dictionary<Tuple<string, Name>, ServiceAnnouncement> _serviceAnnouncements = new Dictionary<Tuple<string, Name>, ServiceAnnouncement>();
         private Dictionary<int, NetworkInterfaceHandler> _interfaceHandlers;
+        NetworkAddressChangedEventHandler _networkAddressChangedEventHandler;
         private List<string> _serviceTypes = new List<string>();
     }
 }
