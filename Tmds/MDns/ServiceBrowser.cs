@@ -58,6 +58,15 @@ namespace Tmds.MDns
             }
         }
 
+
+        public void StopBrowse()
+        {
+            foreach (NetworkInterfaceHandler handler in this._activeHandlers)
+            {
+                handler.Disable();
+            }
+        }
+
         public void StartBrowse(string serviceType, bool useSynchronizationContext = true)
         {
             StartBrowse(new[] { serviceType }, useSynchronizationContext);
@@ -230,6 +239,7 @@ namespace Tmds.MDns
                     if (interfaceInfo.OperationalStatus == OperationalStatus.Up)
                     {
                         interfaceHandler.Enable();
+                        this._activeHandlers.Add(interfaceHandler);
                     }
                     else
                     {
@@ -261,6 +271,7 @@ namespace Tmds.MDns
         private readonly HashSet<ServiceAnnouncement> _services = new HashSet<ServiceAnnouncement>();
         private readonly Dictionary<Tuple<string, Name>, ServiceAnnouncement> _serviceAnnouncements = new Dictionary<Tuple<string, Name>, ServiceAnnouncement>();
         private Dictionary<int, NetworkInterfaceHandler> _interfaceHandlers;
+        private HashSet<NetworkInterfaceHandler> _activeHandlers = new HashSet<NetworkInterfaceHandler>();
         private List<string> _serviceTypes = new List<string>();
     }
 }
