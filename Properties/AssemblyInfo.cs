@@ -21,9 +21,9 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("Tmds.MDns")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyDescription("This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("Tom Deseyn")]
 [assembly: AssemblyProduct("Tmds.MDns")]
 [assembly: AssemblyCopyright("Copyright © Tom Deseyn")]
 [assembly: AssemblyTrademark("")]
