@@ -228,7 +228,17 @@ namespace Tmds.MDns
                                 {
                                     continue;
                                 }
-                                address.ScopeId = NetworkInterface.Information.GetIPProperties().GetIPv6Properties().Index;
+
+                                // Mono does not support IPv6 properties and always throws NotImplementedException.
+                                // Lets handle the case as with Supports.
+                                try
+                                {
+                                    address.ScopeId = NetworkInterface.Information.GetIPProperties().GetIPv6Properties().Index;
+                                }
+                                catch (NotImplementedException)
+                                {
+                                    continue;
+                                }
                             }
                             OnARecord(recordHeader.Name, address, recordHeader.Ttl);
                         }
