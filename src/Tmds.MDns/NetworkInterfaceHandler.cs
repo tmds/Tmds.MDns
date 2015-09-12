@@ -92,7 +92,7 @@ namespace Tmds.MDns
                     serviceHandler.ServiceInfos.Clear();
                 }
 
-                _socket.Dispose();
+                ((IDisposable)_socket).Dispose(); // .NET 3.5 Dispose is protected
                 _socket = null;
 
                 foreach (var serviceKV in _serviceInfos)

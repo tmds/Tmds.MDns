@@ -160,7 +160,7 @@ namespace Tmds.MDns
             while ((rdLength > 0) && ((txtLength = ReadByte()) != 0))
             {
                 rdLength -= (ushort)(txtLength + 1);
-                string txt = UTF8Encoding.UTF8.GetString(ReadBytes(txtLength));
+                string txt = Encoding.UTF8.GetString(ReadBytes(txtLength));
                 txts.Add(txt);
             }
 
