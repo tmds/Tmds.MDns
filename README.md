@@ -3,6 +3,8 @@ Tmds.MDns
 
 This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).
 
+AppVeyor: [![AppVeyor](https://ci.appveyor.com/api/projects/status/g2arq8vpwasvvu4t?svg=true)](https://ci.appveyor.com/project/tmds/tmds-mdns/branch/master)
+
 Example
 -------
 
