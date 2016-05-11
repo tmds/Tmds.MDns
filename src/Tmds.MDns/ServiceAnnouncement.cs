@@ -16,6 +16,8 @@
 
 using System.Collections.Generic;
 using System.Net;
+using System.Net.NetworkInformation;
+
 
 namespace Tmds.MDns
 {

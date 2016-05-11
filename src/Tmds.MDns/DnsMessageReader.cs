@@ -160,7 +160,8 @@ namespace Tmds.MDns
             while ((rdLength > 0) && ((txtLength = ReadByte()) != 0))
             {
                 rdLength -= (ushort)(txtLength + 1);
-                string txt = Encoding.UTF8.GetString(ReadBytes(txtLength));
+                var bytes = ReadBytes(txtLength);
+                string txt = Encoding.UTF8.GetString(bytes, 0, bytes.Length);
                 txts.Add(txt);
             }
 
@@ -258,7 +259,8 @@ namespace Tmds.MDns
                 }
                 else
                 {
-                    string label = UTF8Encoding.UTF8.GetString(ReadBytes(labelLength));
+                    var bytes = ReadBytes(labelLength);
+                    string label = Encoding.UTF8.GetString(bytes, 0, bytes.Length);
                     name.AddLabel(label);
                     if (labelLength == 0)
                     {

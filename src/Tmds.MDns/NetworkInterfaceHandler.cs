@@ -32,8 +32,15 @@ namespace Tmds.MDns
         {
             ServiceBrowser = serviceBrowser;
             NetworkInterface = networkInterface;
-            _index = NetworkInterface.Information.GetIPProperties().GetIPv4Properties().Index;
+            _index = NetworkInterface.GetIPProperties().GetIPv4Properties().Index;
+#if NETSTANDARD1_5
+            _queryTimer = new Timer(OnQueryTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
+            _receiveEventArgs = new SocketAsyncEventArgs();
+            _receiveEventArgs.SetBuffer(_buffer, 0, _buffer.Length);
+            _receiveEventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnReceive);
+#else
             _queryTimer = new Timer(OnQueryTimerElapsed);
+#endif
         }
 
         public void StartBrowse(IEnumerable<Name> names)
@@ -167,13 +174,32 @@ namespace Tmds.MDns
 
         private void StartReceive()
         {
+#if NETSTANDARD1_5
+            bool pending = _socket.ReceiveAsync(_receiveEventArgs);
+            if (!pending)
+            {
+                OnReceive(null, _receiveEventArgs);
+            }
+#else
             _socket.BeginReceive(_buffer, 0, _buffer.Length, SocketFlags.None, OnReceive, null);
+#endif
         }
 
+#if NETSTANDARD1_5
+        private void OnReceive(object sender, SocketAsyncEventArgs args)
+#else
         private void OnReceive(IAsyncResult ar)
+#endif
         {
             lock (this)
             {
+#if NETSTANDARD1_5
+                if (args.SocketError != SocketError.Success)
+                {
+                    return;
+                }
+                int length = args.BytesTransferred;
+#else
                 int length;
                 try
                 {
@@ -187,101 +213,116 @@ namespace Tmds.MDns
                 {
                     return;
                 }
+#endif
                 var stream = new MemoryStream(_buffer, 0, length);
                 var reader = new DnsMessageReader(stream);
-                Header header = reader.ReadHeader();
+                bool validPacket = true;
 
-                if (header.IsQuery && header.AnswerCount == 0)
+                _packetServiceInfos.Clear();
+                _packetHostAddresses.Clear();
+                        
+                try
                 {
-                    for (int i = 0; i < header.QuestionCount; i++)
+                    Header header = reader.ReadHeader();
+
+                    if (header.IsQuery && header.AnswerCount == 0)
                     {
-                        Question question = reader.ReadQuestion();
-                        Name serviceName = question.QName;
-                        if (_serviceHandlers.ContainsKey(serviceName))
+                        for (int i = 0; i < header.QuestionCount; i++)
                         {
-                            if (header.TransactionID != _lastQueryId)
+                            Question question = reader.ReadQuestion();
+                            Name serviceName = question.QName;
+                            if (_serviceHandlers.ContainsKey(serviceName))
                             {
-                                OnServiceQuery(serviceName);
+                                if (header.TransactionID != _lastQueryId)
+                                {
+                                    OnServiceQuery(serviceName);
+                                }
+                            }
+                        }
+                    }
+                    if (header.IsResponse && header.IsNoError && header.IsAuthorativeAnswer)
+                    {
+                        for (int i = 0; i < header.QuestionCount; i++)
+                        {
+                            reader.ReadQuestion();
+                        }
+                        
+                        for (int i = 0; i < (header.AnswerCount + header.AuthorityCount + header.AdditionalCount); i++)
+                        {
+                            RecordHeader recordHeader = reader.ReadRecordHeader();
+                            
+                            if ((recordHeader.Type == RecordType.A) || (recordHeader.Type == RecordType.AAAA)) // A or AAAA
+                            {
+                                IPAddress address = reader.ReadARecord();
+                                if (address.AddressFamily == AddressFamily.InterNetworkV6)
+                                {
+                                    if (!NetworkInterface.Supports(NetworkInterfaceComponent.IPv6))
+                                    {
+                                        continue;
+                                    }
+
+                                    // Mono does not support IPv6 properties and always throws NotImplementedException.
+                                    // Lets handle the case as with Supports.
+                                    try
+                                    {
+                                        address.ScopeId = NetworkInterface.GetIPProperties().GetIPv6Properties().Index;
+                                    }
+                                    catch (NotImplementedException)
+                                    {
+                                        continue;
+                                    }
+                                }
+                                OnARecord(recordHeader.Name, address, recordHeader.Ttl);
+                            }
+                            else if ((recordHeader.Type == RecordType.SRV) ||
+                                    (recordHeader.Type == RecordType.TXT) ||
+                                    (recordHeader.Type == RecordType.PTR))
+                            {
+                                Name serviceName;
+                                Name instanceName;
+                                if (recordHeader.Type == RecordType.PTR)
+                                {
+                                    serviceName = recordHeader.Name;
+                                    instanceName = reader.ReadPtrRecord();
+                                }
+                                else
+                                {
+                                    instanceName = recordHeader.Name;
+                                    serviceName = instanceName.SubName(1);
+                                }
+                                if (_serviceHandlers.ContainsKey(serviceName))
+                                {
+                                    if (recordHeader.Ttl == 0)
+                                    {
+                                        PacketRemovesService(instanceName);
+                                    }
+                                    else
+                                    {
+                                        ServiceInfo service = FindOrCreatePacketService(instanceName);
+                                        if (recordHeader.Type == RecordType.SRV)
+                                        {
+                                            SrvRecord srvRecord = reader.ReadSrvRecord();
+                                            service.HostName = srvRecord.Target;
+                                            service.Port = srvRecord.Port;
+                                        }
+                                        else if (recordHeader.Type == RecordType.TXT)
+                                        {
+                                            List<string> txts = reader.ReadTxtRecord();
+                                            service.Txt = txts;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
-                if (header.IsResponse && header.IsNoError && header.IsAuthorativeAnswer)
+                catch
                 {
-                    for (int i = 0; i < header.QuestionCount; i++)
-                    {
-                        reader.ReadQuestion();
-                    }
-
-                    _packetServiceInfos.Clear();
-                    _packetHostAddresses.Clear();
-
-                    for (int i = 0; i < (header.AnswerCount + header.AuthorityCount + header.AdditionalCount); i++)
-                    {
-                        RecordHeader recordHeader = reader.ReadRecordHeader();
-                        if ((recordHeader.Type == RecordType.A) || (recordHeader.Type == RecordType.AAAA)) // A or AAAA
-                        {
-                            IPAddress address = reader.ReadARecord();
-                            if (address.AddressFamily == AddressFamily.InterNetworkV6)
-                            {
-                                if (!NetworkInterface.Information.Supports(NetworkInterfaceComponent.IPv6))
-                                {
-                                    continue;
-                                }
-
-                                // Mono does not support IPv6 properties and always throws NotImplementedException.
-                                // Lets handle the case as with Supports.
-                                try
-                                {
-                                    address.ScopeId = NetworkInterface.Information.GetIPProperties().GetIPv6Properties().Index;
-                                }
-                                catch (NotImplementedException)
-                                {
-                                    continue;
-                                }
-                            }
-                            OnARecord(recordHeader.Name, address, recordHeader.Ttl);
-                        }
-                        else if ((recordHeader.Type == RecordType.SRV) ||
-                                 (recordHeader.Type == RecordType.TXT) ||
-                                (recordHeader.Type == RecordType.PTR))
-                        {
-                            Name serviceName;
-                            Name instanceName;
-                            if (recordHeader.Type == RecordType.PTR)
-                            {
-                                serviceName = recordHeader.Name;
-                                instanceName = reader.ReadPtrRecord();
-                            }
-                            else
-                            {
-                                instanceName = recordHeader.Name;
-                                serviceName = instanceName.SubName(1);
-                            }
-                            if (_serviceHandlers.ContainsKey(serviceName))
-                            {
-                                if (recordHeader.Ttl == 0)
-                                {
-                                    PacketRemovesService(instanceName);
-                                }
-                                else
-                                {
-                                    ServiceInfo service = FindOrCreatePacketService(instanceName);
-                                    if (recordHeader.Type == RecordType.SRV)
-                                    {
-                                        SrvRecord srvRecord = reader.ReadSrvRecord();
-                                        service.HostName = srvRecord.Target;
-                                        service.Port = srvRecord.Port;
-                                    }
-                                    else if (recordHeader.Type == RecordType.TXT)
-                                    {
-                                        List<string> txts = reader.ReadTxtRecord();
-                                        service.Txt = txts;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    validPacket = false;
+                    throw;
+                }
+                if (validPacket)
+                {
                     HandlePacketHostAddresses();
                     HandlePacketServiceInfos();
                 }
@@ -655,6 +696,9 @@ namespace Tmds.MDns
         private Socket _socket;
         private readonly int _index;
         private readonly byte[] _buffer = new byte[9000];
+#if NETSTANDARD1_5
+        private readonly SocketAsyncEventArgs _receiveEventArgs;
+#endif
         private readonly Dictionary<Name, ServiceInfo> _packetServiceInfos = new Dictionary<Name, ServiceInfo>();
         private readonly Dictionary<Name, HostAddresses> _packetHostAddresses = new Dictionary<Name, HostAddresses>();
         private readonly Dictionary<Name, ServiceInfo> _serviceInfos = new Dictionary<Name, ServiceInfo>();

@@ -19,7 +19,6 @@ using System.Collections.Generic;
 using System.Net.NetworkInformation;
 using System.Threading;
 using System.Linq;
-using NetworkInterfaceInformation = System.Net.NetworkInformation.NetworkInterface;
 
 namespace Tmds.MDns
 {
@@ -111,11 +110,11 @@ namespace Tmds.MDns
             };
             lock (_serviceAnnouncements)
             {
-                _serviceAnnouncements.Add(Tuple.Create(service.NetworkInterface.Id, service.Name), announcement);
+                _serviceAnnouncements.Add(Tuple.Create(GetId(service.NetworkInterface), service.Name), announcement);
             }
             SynchronizationContextPost(o =>
             {
-                lock (_services)
+                lock (Services)
                 {
                     _services.Add(announcement);
                 }
@@ -128,7 +127,7 @@ namespace Tmds.MDns
 
         internal void OnServiceRemoved(ServiceInfo service)
         {
-            var key = Tuple.Create(service.NetworkInterface.Id, service.Name);
+            var key = Tuple.Create(GetId(service.NetworkInterface), service.Name);
             ServiceAnnouncement announcement;
             lock (_serviceAnnouncements)
             {
@@ -138,7 +137,7 @@ namespace Tmds.MDns
             SynchronizationContextPost(o =>
             {
                 announcement.IsRemoved = true;
-                lock (_services)
+                lock (Services)
                 {
                     _services.Remove(announcement);
                 }
@@ -176,7 +175,7 @@ namespace Tmds.MDns
             ServiceAnnouncement announcement;
             lock (_serviceAnnouncements)
             {
-                announcement = _serviceAnnouncements[Tuple.Create(service.NetworkInterface.Id, service.Name)];
+                announcement = _serviceAnnouncements[Tuple.Create(GetId(service.NetworkInterface), service.Name)];
             }
             var tmpAnnouncement = new ServiceAnnouncement()
             {
@@ -235,31 +234,30 @@ namespace Tmds.MDns
                 }
 
                 HashSet<NetworkInterfaceHandler> handlers = new HashSet<NetworkInterfaceHandler>(_interfaceHandlers.Values);
-                NetworkInterfaceInformation[] interfaceInfos = NetworkInterfaceInformation.GetAllNetworkInterfaces();
-                foreach (NetworkInterfaceInformation interfaceInfo in interfaceInfos)
+                NetworkInterface[] networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
+                foreach (NetworkInterface networkInterface in networkInterfaces)
                 {
-                    if (interfaceInfo.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                    if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Loopback)
                     {
                         continue;
                     }
-                    if (interfaceInfo.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
+                    if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
                     {
                         continue;
                     }
 
-                    int index = interfaceInfo.GetIPProperties().GetIPv4Properties().Index;
+                    int index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
                     NetworkInterfaceHandler interfaceHandler;
                     _interfaceHandlers.TryGetValue(index, out interfaceHandler);
                     if (interfaceHandler == null)
                     {
-                        var networkInterface = new NetworkInterface(interfaceInfo);
-                        index = interfaceInfo.GetIPProperties().GetIPv4Properties().Index;
+                        index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
                         interfaceHandler = new NetworkInterfaceHandler(this, networkInterface);
                         _interfaceHandlers.Add(index, interfaceHandler);
                         OnNetworkInterfaceAdded(networkInterface);
                         interfaceHandler.StartBrowse(_serviceTypes.Select(st => new Name(st.ToLower() + ".local.")));
                     }
-                    if (interfaceInfo.OperationalStatus == OperationalStatus.Up)
+                    if (networkInterface.OperationalStatus == OperationalStatus.Up)
                     {
                         interfaceHandler.Enable();
                     }
@@ -288,6 +286,24 @@ namespace Tmds.MDns
             {
                 cb(null);
             }
+        }
+        
+        // https://github.com/dotnet/corefx/issues/8297
+        private static bool _idSupported = true;
+        private string GetId(NetworkInterface interf)
+        {
+            if (_idSupported)
+            {
+                try
+                {
+                    return interf.Id;
+                }
+                catch (PlatformNotSupportedException)
+                {
+                    _idSupported = false;
+                }
+            }
+            return interf.Name;
         }
 
         private readonly HashSet<ServiceAnnouncement> _services = new HashSet<ServiceAnnouncement>();

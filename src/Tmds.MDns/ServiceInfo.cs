@@ -17,7 +17,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net;
-using NetworkInterfaceInformation = System.Net.NetworkInformation.NetworkInterface;
+using System.Net.NetworkInformation;
 
 namespace Tmds.MDns
 {

@@ -78,17 +78,17 @@ namespace Tmds.MDns
 
         public int CompareTo(Name name)
         {
-            return StringComparer.InvariantCultureIgnoreCase.Compare(ToString(), name.ToString());
+            return StringComparer.OrdinalIgnoreCase.Compare(ToString(), name.ToString());
         }
 
         public override bool Equals(object obj)
         {
-            return StringComparer.InvariantCultureIgnoreCase.Equals(ToString(), obj.ToString());
+            return StringComparer.OrdinalIgnoreCase.Equals(ToString(), obj.ToString());
         }
 
         public override int GetHashCode()
         {
-            return StringComparer.InvariantCultureIgnoreCase.GetHashCode(ToString());
+            return StringComparer.OrdinalIgnoreCase.GetHashCode(ToString());
         }
 
         public IList<string> Labels

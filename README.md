@@ -75,3 +75,4 @@ The library does not aim to be a reference DNS querier and cache as described in
 - The library is **self-contained** and does not use a system service (e.g. avahi, bonjour) for mDNS. RFC6762 recommends the use of a single service, but it is not possible to combine this requirement with the differences described in this paragraph.
 - The library **automatically resolves the IP addresses** of the service host. No separate resolve operation is required.
 - The library launches events in a **_SynchronizationContext_**. This context can be set explicitly or it is captured automatically when the browse operation is executed. Using this library in a WinForms/WPF application is easy as the user can update the UI directly in the event handlers.
+- When there is no **_SynchronizationContext_**, events for different interfaces may be generated simultaneously. When iterating over the Services, lock the property to ensure the iterator is not invalidated.
