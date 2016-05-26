@@ -74,7 +74,7 @@ namespace Tmds.MDns
                 IPAddress ip = IPv4EndPoint.Address;
                 _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(ip, _index));
                 _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
-                
+
                 StartReceive();
                 StartQuery();
             }
@@ -220,7 +220,7 @@ namespace Tmds.MDns
 
                 _packetServiceInfos.Clear();
                 _packetHostAddresses.Clear();
-                        
+
                 try
                 {
                     Header header = reader.ReadHeader();
@@ -246,11 +246,11 @@ namespace Tmds.MDns
                         {
                             reader.ReadQuestion();
                         }
-                        
+
                         for (int i = 0; i < (header.AnswerCount + header.AuthorityCount + header.AdditionalCount); i++)
                         {
                             RecordHeader recordHeader = reader.ReadRecordHeader();
-                            
+
                             if ((recordHeader.Type == RecordType.A) || (recordHeader.Type == RecordType.AAAA)) // A or AAAA
                             {
                                 IPAddress address = reader.ReadARecord();
@@ -319,7 +319,6 @@ namespace Tmds.MDns
                 catch
                 {
                     validPacket = false;
-                    throw;
                 }
                 if (validPacket)
                 {
@@ -578,7 +577,7 @@ namespace Tmds.MDns
         private void AddServiceHostInfo(ServiceInfo service)
         {
             Name hostname = service.HostName;
-            
+
             HostInfo hostInfo;
             _hostInfos.TryGetValue(hostname, out hostInfo);
             if (hostInfo == null)
@@ -599,10 +598,10 @@ namespace Tmds.MDns
                 }
                 _hostInfos.Add(hostname, hostInfo);
             }
-            
+
             Debug.Assert(!hostInfo.ServiceInfos.Contains(service));
             hostInfo.ServiceInfos.Add(service);
-            
+
             service.Addresses = hostInfo.Addresses;
         }
 
