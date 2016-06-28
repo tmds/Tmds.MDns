@@ -4,10 +4,10 @@
     "emitEntryPoint": true
   },
   "dependencies": {
-    "Tmds.MDns": "0.4.0",
+    "Tmds.MDns": "0.5.0",
     "Microsoft.NETCore.App": {
       "type": "platform",
-      "version": "1.0.0-rc2-3002702"
+      "version": "1.0.0"
     }
   },
   "frameworks": {
