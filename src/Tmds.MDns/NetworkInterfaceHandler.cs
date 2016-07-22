@@ -33,7 +33,7 @@ namespace Tmds.MDns
             ServiceBrowser = serviceBrowser;
             NetworkInterface = networkInterface;
             _index = NetworkInterface.GetIPProperties().GetIPv4Properties().Index;
-#if NETSTANDARD1_5
+#if NETSTANDARD1_3
             _queryTimer = new Timer(OnQueryTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
             _receiveEventArgs = new SocketAsyncEventArgs();
             _receiveEventArgs.SetBuffer(_buffer, 0, _buffer.Length);
@@ -174,7 +174,7 @@ namespace Tmds.MDns
 
         private void StartReceive()
         {
-#if NETSTANDARD1_5
+#if NETSTANDARD1_3
             bool pending = _socket.ReceiveAsync(_receiveEventArgs);
             if (!pending)
             {
@@ -185,7 +185,7 @@ namespace Tmds.MDns
 #endif
         }
 
-#if NETSTANDARD1_5
+#if NETSTANDARD1_3
         private void OnReceive(object sender, SocketAsyncEventArgs args)
 #else
         private void OnReceive(IAsyncResult ar)
@@ -193,7 +193,7 @@ namespace Tmds.MDns
         {
             lock (this)
             {
-#if NETSTANDARD1_5
+#if NETSTANDARD1_3
                 if (args.SocketError != SocketError.Success)
                 {
                     return;
@@ -695,7 +695,7 @@ namespace Tmds.MDns
         private Socket _socket;
         private readonly int _index;
         private readonly byte[] _buffer = new byte[9000];
-#if NETSTANDARD1_5
+#if NETSTANDARD1_3
         private readonly SocketAsyncEventArgs _receiveEventArgs;
 #endif
         private readonly Dictionary<Name, ServiceInfo> _packetServiceInfos = new Dictionary<Name, ServiceInfo>();

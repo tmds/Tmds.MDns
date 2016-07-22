@@ -1,5 +1,5 @@
 {
-  "version": "0.5.0",
+  "version": "0.6.0",
   "packOptions": {
     "tags": [ "mdns", "avahi", "zeroconf", "rfc6762", "rfc6763" ],
     "repository": {
@@ -13,7 +13,7 @@
   "description": "This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).",
   "authors": [ "Tom Deseyn" ],
   "frameworks": {
-    "netstandard1.5": {
+    "netstandard1.3": {
       "dependencies": {
         "System.Net.NetworkInformation": "4.1.0",
         "System.Net.Sockets" : "4.1.0",
