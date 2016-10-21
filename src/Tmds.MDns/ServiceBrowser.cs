@@ -245,6 +245,10 @@ namespace Tmds.MDns
                     {
                         continue;
                     }
+                    if (!networkInterface.SupportsMulticast)
+                    {
+                        continue;
+                    }
 
                     int index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
                     NetworkInterfaceHandler interfaceHandler;
