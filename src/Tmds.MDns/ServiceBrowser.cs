@@ -250,6 +250,8 @@ namespace Tmds.MDns
                         continue;
                     }
 
+                    if (!networkInterface.Supports(NetworkInterfaceComponent.IPv4)) continue;
+
                     int index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
                     NetworkInterfaceHandler interfaceHandler;
                     _interfaceHandlers.TryGetValue(index, out interfaceHandler);
