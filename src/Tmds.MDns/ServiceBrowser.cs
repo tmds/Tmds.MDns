@@ -149,7 +149,7 @@ namespace Tmds.MDns
         }
 
         void OnNetworkInterfaceAdded(NetworkInterface networkInterface)
-        {            
+        {
             SynchronizationContextPost(o =>
             {
                 if (NetworkInterfaceAdded != null)
@@ -246,6 +246,10 @@ namespace Tmds.MDns
                         continue;
                     }
                     if (!networkInterface.SupportsMulticast)
+                    {
+                        continue;
+                    }
+                    if (!networkInterface.Supports(NetworkInterfaceComponent.IPv4))
                     {
                         continue;
                     }
