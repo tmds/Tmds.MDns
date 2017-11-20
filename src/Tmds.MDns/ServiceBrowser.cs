@@ -149,7 +149,7 @@ namespace Tmds.MDns
         }
 
         void OnNetworkInterfaceAdded(NetworkInterface networkInterface)
-        {            
+        {
             SynchronizationContextPost(o =>
             {
                 if (NetworkInterfaceAdded != null)
@@ -249,8 +249,10 @@ namespace Tmds.MDns
                     {
                         continue;
                     }
-
-                    if (!networkInterface.Supports(NetworkInterfaceComponent.IPv4)) continue;
+                    if (!networkInterface.Supports(NetworkInterfaceComponent.IPv4))
+                    {
+                        continue;
+                    }
 
                     int index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
                     NetworkInterfaceHandler interfaceHandler;
