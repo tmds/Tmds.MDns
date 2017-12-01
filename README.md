@@ -1,9 +1,16 @@
+[![AppVeyor](https://ci.appveyor.com/api/projects/status/g2arq8vpwasvvu4t?svg=true)](https://ci.appveyor.com/project/tmds/tmds-mdns/branch/master)
+[![NuGet](https://img.shields.io/nuget/v/Tmds.MDns.svg)](https://www.nuget.org/packages/Tmds.MDns)
+
 Tmds.MDns
 =========
 
 This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).
 
-AppVeyor: [![AppVeyor](https://ci.appveyor.com/api/projects/status/g2arq8vpwasvvu4t?svg=true)](https://ci.appveyor.com/project/tmds/tmds-mdns/branch/master)
+Version 0.7.0+ is compatible with .NET Core and .NET Framework 4.0+.
+
+Version 0.6 and below also supported .NET Framework 2.0, 3.5.
+Support for these versions was dropped due to a dotnet cli msbuild issue:
+https://github.com/Microsoft/msbuild/issues/1333.
 
 Example
 -------
