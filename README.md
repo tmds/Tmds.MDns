@@ -7,7 +7,6 @@ Tmds.MDns
 This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).
 
 Version 0.7.0+ is compatible with .NET Core and .NET Framework 4.0+.
-
 Version 0.6 and below also supported .NET Framework 2.0, 3.5.
 Support for these versions was dropped due to a dotnet cli msbuild issue:
 https://github.com/Microsoft/msbuild/issues/1333.
