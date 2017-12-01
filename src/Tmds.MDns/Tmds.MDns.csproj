@@ -5,7 +5,7 @@
     <AssemblyTitle>Tmds.MDns</AssemblyTitle>
     <VersionPrefix>0.6.0</VersionPrefix>
     <Authors>Tom Deseyn</Authors>
-    <TargetFrameworks>netstandard1.3;net45;net40;net35;net20</TargetFrameworks>
+    <TargetFrameworks>netstandard1.3;net45;net40</TargetFrameworks>
     <AssemblyName>Tmds.MDns</AssemblyName>
     <PackageId>Tmds.MDns</PackageId>
     <PackageTags>mdns;avahi;zeroconf;rfc6762;rfc6763</PackageTags>
@@ -25,15 +25,6 @@
   <ItemGroup Condition=" '$(TargetFramework)' == 'net40' ">
     <Reference Include="System" />
     <Reference Include="Microsoft.CSharp" />
-  </ItemGroup>
-
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net35' ">
-    <Reference Include="System" />
-  </ItemGroup>
-
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net20' ">
-    <PackageReference Include="LinqBridge" Version="1.3.0" />
-    <Reference Include="System" />
   </ItemGroup>
 
 </Project>
