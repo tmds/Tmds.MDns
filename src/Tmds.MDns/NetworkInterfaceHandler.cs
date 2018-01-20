@@ -240,7 +240,7 @@ namespace Tmds.MDns
                             }
                         }
                     }
-                    if (header.IsResponse && header.IsNoError && header.IsAuthorativeAnswer)
+                    if (header.IsResponse && header.IsNoError)
                     {
                         for (int i = 0; i < header.QuestionCount; i++)
                         {

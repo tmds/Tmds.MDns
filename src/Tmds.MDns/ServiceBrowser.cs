@@ -237,10 +237,6 @@ namespace Tmds.MDns
                 NetworkInterface[] networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
                 foreach (NetworkInterface networkInterface in networkInterfaces)
                 {
-                    if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Loopback)
-                    {
-                        continue;
-                    }
                     if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
                     {
                         continue;
@@ -263,7 +259,18 @@ namespace Tmds.MDns
                         interfaceHandler = new NetworkInterfaceHandler(this, networkInterface);
                         _interfaceHandlers.Add(index, interfaceHandler);
                         OnNetworkInterfaceAdded(networkInterface);
-                        interfaceHandler.StartBrowse(_serviceTypes.Select(st => new Name(st.ToLower() + ".local.")));
+
+                        // Get the fully qualified name for each service type.  Normally, ".local."
+                        // is appended.  However, some services do not follow this convention.  So
+                        // if the service type ends with ".", it is considered a FQN.
+                        var names = _serviceTypes.Select(st =>
+                        {
+                            var fqn = st.ToLowerInvariant();
+                            if (!fqn.EndsWith("."))
+                                fqn = fqn + ".local.";
+                            return new Name(fqn);
+                        });
+                        interfaceHandler.StartBrowse(names);
                     }
                     if (networkInterface.OperationalStatus == OperationalStatus.Up)
                     {
