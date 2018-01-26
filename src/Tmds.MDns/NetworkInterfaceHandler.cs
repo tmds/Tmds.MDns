@@ -242,7 +242,6 @@ namespace Tmds.MDns
                     }
                     if (header.IsResponse && header.IsNoError)
                     {
-                        Console.WriteLine("got response");
                         for (int i = 0; i < header.QuestionCount; i++)
                         {
                             reader.ReadQuestion();

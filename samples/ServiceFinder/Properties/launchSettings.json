@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "ServiceFinder": {
-      "commandName": "Project",
-      "commandLineArgs": "_ipfs-discovery._udp.local"
-    }
-  }
-}
