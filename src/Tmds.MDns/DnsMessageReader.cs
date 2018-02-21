@@ -154,12 +154,16 @@ namespace Tmds.MDns
         public List<string> ReadTxtRecord()
         {
             var txts = new List<string>();
-            byte txtLength;
             int rdLength = _recordLength;
             
-            while ((rdLength > 0) && ((txtLength = ReadByte()) != 0))
+            while (rdLength > 0)
             {
+                var txtLength = ReadByte();
                 rdLength -= (ushort)(txtLength + 1);
+                if (rdLength < 0)
+                {
+                    throw new Exception();
+                }
                 var bytes = ReadBytes(txtLength);
                 string txt = Encoding.UTF8.GetString(bytes, 0, bytes.Length);
                 txts.Add(txt);
