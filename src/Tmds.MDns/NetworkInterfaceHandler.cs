@@ -33,7 +33,7 @@ namespace Tmds.MDns
             ServiceBrowser = serviceBrowser;
             NetworkInterface = networkInterface;
             _index = NetworkInterface.GetIPProperties().GetIPv4Properties().Index;
-#if NETSTANDARD1_5
+#if NETSTANDARD1_3
             _queryTimer = new Timer(OnQueryTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
             _receiveEventArgs = new SocketAsyncEventArgs();
             _receiveEventArgs.SetBuffer(_buffer, 0, _buffer.Length);
@@ -74,7 +74,7 @@ namespace Tmds.MDns
                 IPAddress ip = IPv4EndPoint.Address;
                 _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(ip, _index));
                 _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
-                
+
                 StartReceive();
                 StartQuery();
             }
@@ -174,7 +174,7 @@ namespace Tmds.MDns
 
         private void StartReceive()
         {
-#if NETSTANDARD1_5
+#if NETSTANDARD1_3
             bool pending = _socket.ReceiveAsync(_receiveEventArgs);
             if (!pending)
             {
@@ -185,7 +185,7 @@ namespace Tmds.MDns
 #endif
         }
 
-#if NETSTANDARD1_5
+#if NETSTANDARD1_3
         private void OnReceive(object sender, SocketAsyncEventArgs args)
 #else
         private void OnReceive(IAsyncResult ar)
@@ -193,7 +193,7 @@ namespace Tmds.MDns
         {
             lock (this)
             {
-#if NETSTANDARD1_5
+#if NETSTANDARD1_3
                 if (args.SocketError != SocketError.Success)
                 {
                     return;
@@ -220,7 +220,7 @@ namespace Tmds.MDns
 
                 _packetServiceInfos.Clear();
                 _packetHostAddresses.Clear();
-                        
+
                 try
                 {
                     Header header = reader.ReadHeader();
@@ -240,17 +240,17 @@ namespace Tmds.MDns
                             }
                         }
                     }
-                    if (header.IsResponse && header.IsNoError && header.IsAuthorativeAnswer)
+                    if (header.IsResponse && header.IsNoError)
                     {
                         for (int i = 0; i < header.QuestionCount; i++)
                         {
                             reader.ReadQuestion();
                         }
-                        
+
                         for (int i = 0; i < (header.AnswerCount + header.AuthorityCount + header.AdditionalCount); i++)
                         {
                             RecordHeader recordHeader = reader.ReadRecordHeader();
-                            
+
                             if ((recordHeader.Type == RecordType.A) || (recordHeader.Type == RecordType.AAAA)) // A or AAAA
                             {
                                 IPAddress address = reader.ReadARecord();
@@ -319,7 +319,6 @@ namespace Tmds.MDns
                 catch
                 {
                     validPacket = false;
-                    throw;
                 }
                 if (validPacket)
                 {
@@ -578,7 +577,7 @@ namespace Tmds.MDns
         private void AddServiceHostInfo(ServiceInfo service)
         {
             Name hostname = service.HostName;
-            
+
             HostInfo hostInfo;
             _hostInfos.TryGetValue(hostname, out hostInfo);
             if (hostInfo == null)
@@ -599,10 +598,10 @@ namespace Tmds.MDns
                 }
                 _hostInfos.Add(hostname, hostInfo);
             }
-            
+
             Debug.Assert(!hostInfo.ServiceInfos.Contains(service));
             hostInfo.ServiceInfos.Add(service);
-            
+
             service.Addresses = hostInfo.Addresses;
         }
 
@@ -696,7 +695,7 @@ namespace Tmds.MDns
         private Socket _socket;
         private readonly int _index;
         private readonly byte[] _buffer = new byte[9000];
-#if NETSTANDARD1_5
+#if NETSTANDARD1_3
         private readonly SocketAsyncEventArgs _receiveEventArgs;
 #endif
         private readonly Dictionary<Name, ServiceInfo> _packetServiceInfos = new Dictionary<Name, ServiceInfo>();

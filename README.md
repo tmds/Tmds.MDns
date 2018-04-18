@@ -1,69 +1,77 @@
+[![AppVeyor](https://ci.appveyor.com/api/projects/status/g2arq8vpwasvvu4t?svg=true)](https://ci.appveyor.com/project/tmds/tmds-mdns/branch/master)
+[![NuGet](https://img.shields.io/nuget/v/Tmds.MDns.svg)](https://www.nuget.org/packages/Tmds.MDns)
+
 Tmds.MDns
 =========
 
 This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).
 
-AppVeyor: [![AppVeyor](https://ci.appveyor.com/api/projects/status/g2arq8vpwasvvu4t?svg=true)](https://ci.appveyor.com/project/tmds/tmds-mdns/branch/master)
+Version 0.7.0+ is compatible with .NET Core and .NET Framework 4.0+.
+Version 0.6 and below also supported .NET Framework 2.0, 3.5.
+Support for these versions was dropped due to a dotnet cli msbuild issue:
+https://github.com/Microsoft/msbuild/issues/1333.
 
 Example
 -------
 
 This examples shows how to use the ServiceBrowser class to find \_workstation.\_tcp_ types.
 
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Net;
-    using System.Text;
-    using System.Threading.Tasks;
-    using Tmds.MDns;
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Threading.Tasks;
+using Tmds.MDns;
 
-    namespace ServiceFinder
+namespace ServiceFinder
+{
+    class Program
     {
-        class Program
+        static void Main(string[] args)
         {
-            static void Main(string[] args)
+            string serviceType = "_workstation._tcp";
+            if (args.Length >= 1)
             {
-                string serviceType = "_workstation._tcp";
-                if (args.Length >= 1)
-                {
-                    serviceType = args[0];
-                }
-
-                ServiceBrowser serviceBrowser = new ServiceBrowser();
-                serviceBrowser.ServiceAdded += onServiceAdded;
-                serviceBrowser.ServiceRemoved += onServiceRemoved;
-                serviceBrowser.ServiceChanged += onServiceChanged;
-
-                Console.WriteLine("Browsing for type: {0}", serviceType);
-                serviceBrowser.StartBrowse(serviceType);
-                Console.ReadLine();
+                serviceType = args[0];
             }
 
-            static void onServiceChanged(object sender, ServiceAnnouncementEventArgs e)
-            {
-                printService('~', e.Announcement);
-            }
+            ServiceBrowser serviceBrowser = new ServiceBrowser();
+            serviceBrowser.ServiceAdded += onServiceAdded;
+            serviceBrowser.ServiceRemoved += onServiceRemoved;
+            serviceBrowser.ServiceChanged += onServiceChanged;
 
-            static void onServiceRemoved(object sender, ServiceAnnouncementEventArgs e)
-            {
-                printService('-', e.Announcement);
-            }
+            Console.WriteLine("Browsing for type: {0}", serviceType);
+            serviceBrowser.StartBrowse(serviceType);
+            Console.ReadLine();
+        }
 
-            static void onServiceAdded(object sender, ServiceAnnouncementEventArgs e)
-            {
-                printService('+', e.Announcement);
-            }
+        static void onServiceChanged(object sender, ServiceAnnouncementEventArgs e)
+        {
+            printService('~', e.Announcement);
+        }
 
-            static void printService(char startChar, ServiceAnnouncement service)
-            {
-                Console.WriteLine("{0} '{1}' on {2}", startChar, service.Instance, service.NetworkInterface.Name);
-                Console.WriteLine("\tHost: {0} ({1})", service.Hostname, string.Join(", ", service.Addresses));
-                Console.WriteLine("\tPort: {0}", service.Port);
-                Console.WriteLine("\tTxt : [{0}]", string.Join(", ", service.Txt));
-            }
+        static void onServiceRemoved(object sender, ServiceAnnouncementEventArgs e)
+        {
+            printService('-', e.Announcement);
+        }
+
+        static void onServiceAdded(object sender, ServiceAnnouncementEventArgs e)
+        {
+            printService('+', e.Announcement);
+        }
+
+        static void printService(char startChar, ServiceAnnouncement service)
+        {
+            Console.WriteLine("{0} '{1}' on {2}", startChar, service.Instance, service.NetworkInterface.Name);
+            Console.WriteLine("\tHost: {0} ({1})", service.Hostname, string.Join(", ", service.Addresses));
+            Console.WriteLine("\tPort: {0}", service.Port);
+            Console.WriteLine("\tTxt : [{0}]", string.Join(", ", service.Txt));
         }
     }
+}
+```
 
 Implementation
 --------------
