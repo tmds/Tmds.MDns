@@ -110,7 +110,7 @@ namespace Tmds.MDns
             };
             lock (_serviceAnnouncements)
             {
-                _serviceAnnouncements.Add(Tuple.Create(GetId(service.NetworkInterface), service.Name), announcement);
+                _serviceAnnouncements.Add(Tuple.Create(service.NetworkInterface.Id, service.Name), announcement);
             }
             SynchronizationContextPost(o =>
             {
@@ -127,7 +127,7 @@ namespace Tmds.MDns
 
         internal void OnServiceRemoved(ServiceInfo service)
         {
-            var key = Tuple.Create(GetId(service.NetworkInterface), service.Name);
+            var key = Tuple.Create(service.NetworkInterface.Id, service.Name);
             ServiceAnnouncement announcement;
             lock (_serviceAnnouncements)
             {
@@ -149,7 +149,7 @@ namespace Tmds.MDns
         }
 
         void OnNetworkInterfaceAdded(NetworkInterface networkInterface)
-        {            
+        {
             SynchronizationContextPost(o =>
             {
                 if (NetworkInterfaceAdded != null)
@@ -175,7 +175,7 @@ namespace Tmds.MDns
             ServiceAnnouncement announcement;
             lock (_serviceAnnouncements)
             {
-                announcement = _serviceAnnouncements[Tuple.Create(GetId(service.NetworkInterface), service.Name)];
+                announcement = _serviceAnnouncements[Tuple.Create(service.NetworkInterface.Id, service.Name)];
             }
             var tmpAnnouncement = new ServiceAnnouncement()
             {
@@ -237,11 +237,15 @@ namespace Tmds.MDns
                 NetworkInterface[] networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
                 foreach (NetworkInterface networkInterface in networkInterfaces)
                 {
-                    if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Loopback)
+                    if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
                     {
                         continue;
                     }
-                    if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
+                    if (!networkInterface.SupportsMulticast)
+                    {
+                        continue;
+                    }
+                    if (!networkInterface.Supports(NetworkInterfaceComponent.IPv4))
                     {
                         continue;
                     }
@@ -286,24 +290,6 @@ namespace Tmds.MDns
             {
                 cb(null);
             }
-        }
-        
-        // https://github.com/dotnet/corefx/issues/8297
-        private static bool _idSupported = true;
-        private string GetId(NetworkInterface interf)
-        {
-            if (_idSupported)
-            {
-                try
-                {
-                    return interf.Id;
-                }
-                catch (PlatformNotSupportedException)
-                {
-                    _idSupported = false;
-                }
-            }
-            return interf.Name;
         }
 
         private readonly HashSet<ServiceAnnouncement> _services = new HashSet<ServiceAnnouncement>();
