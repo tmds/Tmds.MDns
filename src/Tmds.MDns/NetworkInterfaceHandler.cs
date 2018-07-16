@@ -453,6 +453,11 @@ namespace Tmds.MDns
             if (service != null)
             {
                 _serviceInfos.Remove(name);
+                if (!_serviceHandlers.ContainsKey(name.SubName(1)))
+                {
+                    return;
+                }
+
                 _serviceHandlers[name.SubName(1)].ServiceInfos.Remove(service);
                 if (service.IsComplete)
                 {
@@ -488,6 +493,11 @@ namespace Tmds.MDns
                     {
                         service = packetService;
                         _serviceInfos.Add(packetName, service);
+                        if (!_serviceHandlers.ContainsKey(packetName.SubName(1)))
+                        {
+                            continue;
+                        }
+
                         _serviceHandlers[packetName.SubName(1)].ServiceInfos.Add(service);
 
                         if (service.HostName != null)
