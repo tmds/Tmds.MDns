@@ -23,6 +23,11 @@ namespace Tmds.MDns
 {
     public class ServiceAnnouncement
     {
+        public readonly EndPoint LocalEndpoint;
+        public ServiceAnnouncement(EndPoint localEndPoint)
+        {
+            this.LocalEndpoint = localEndPoint;
+        }
         public string Instance { get; internal set; }
         public string Type { get; internal set; }
         public string Domain { get; internal set; }

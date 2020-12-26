@@ -32,7 +32,7 @@ namespace Tmds.MDns
 
         public void StartBrowse(string serviceType, SynchronizationContext synchronizationContext)
         {
-            StartBrowse(new [] { serviceType }, synchronizationContext);
+            StartBrowse(new[] { serviceType }, synchronizationContext);
         }
 
         public void StartBrowse(IEnumerable<string> serviceTypes, SynchronizationContext synchronizationContext)
@@ -95,9 +95,9 @@ namespace Tmds.MDns
         public event EventHandler<NetworkInterfaceEventArgs> NetworkInterfaceAdded;
         public event EventHandler<NetworkInterfaceEventArgs> NetworkInterfaceRemoved;
 
-        internal void OnServiceAdded(ServiceInfo service)
+        internal void OnServiceAdded(ServiceInfo service, System.Net.EndPoint localEndPoint)
         {
-            var announcement = new ServiceAnnouncement
+            var announcement = new ServiceAnnouncement(localEndPoint)
             {
                 Hostname = service.HostName.Labels[0],
                 Domain = service.HostName.SubName(1).ToString(),
@@ -170,14 +170,14 @@ namespace Tmds.MDns
             });
         }
 
-        internal void OnServiceChanged(ServiceInfo service)
+        internal void OnServiceChanged(ServiceInfo service, System.Net.EndPoint localEndPoint)
         {
             ServiceAnnouncement announcement;
             lock (_serviceAnnouncements)
             {
                 announcement = _serviceAnnouncements[Tuple.Create(service.NetworkInterface.Id, service.Name)];
             }
-            var tmpAnnouncement = new ServiceAnnouncement()
+            var tmpAnnouncement = new ServiceAnnouncement(localEndPoint)
             {
                 Hostname = service.HostName.Labels[0],
                 Domain = service.HostName.SubName(1).ToString(),
@@ -214,7 +214,7 @@ namespace Tmds.MDns
             IsBrowsing = true;
             SynchronizationContext = synchronizationContext;
 
-            Dictionary<int, NetworkInterfaceHandler> interfaceHandlers = new Dictionary<int, NetworkInterfaceHandler>();
+            Dictionary<string, NetworkInterfaceHandler> interfaceHandlers = new Dictionary<string, NetworkInterfaceHandler>();
             _interfaceHandlers = interfaceHandlers;
             _networkAddressChangedEventHandler = (s, e) =>
             {
@@ -224,7 +224,7 @@ namespace Tmds.MDns
             CheckNetworkInterfaceStatuses(interfaceHandlers);
         }
 
-        private void CheckNetworkInterfaceStatuses(Dictionary<int, NetworkInterfaceHandler> interfaceHandlers)
+        private void CheckNetworkInterfaceStatuses(Dictionary<string, NetworkInterfaceHandler> interfaceHandlers)
         {
             lock (interfaceHandlers)
             {
@@ -251,29 +251,38 @@ namespace Tmds.MDns
                     }
 
                     int index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
-                    NetworkInterfaceHandler interfaceHandler;
-                    _interfaceHandlers.TryGetValue(index, out interfaceHandler);
-                    if (interfaceHandler == null)
+                    foreach (var unicastAddress in networkInterface.GetIPProperties().UnicastAddresses)
                     {
-                        index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
-                        interfaceHandler = new NetworkInterfaceHandler(this, networkInterface);
-                        _interfaceHandlers.Add(index, interfaceHandler);
-                        OnNetworkInterfaceAdded(networkInterface);
-                        interfaceHandler.StartBrowse(_serviceTypes.Select(st => new Name(st.ToLower() + ".local.")));
+                        if (unicastAddress.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                        {
+                            {
+                                NetworkInterfaceHandler interfaceHandler;
+                                string key = NetworkInterfaceHandler.CalcKey(index, unicastAddress.Address);
+                                _interfaceHandlers.TryGetValue(key, out interfaceHandler);
+                                if (interfaceHandler == null)
+                                {
+                                    index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
+                                    interfaceHandler = new NetworkInterfaceHandler(this, networkInterface, unicastAddress.Address);
+                                    _interfaceHandlers.Add(key, interfaceHandler);
+                                    OnNetworkInterfaceAdded(networkInterface);
+                                    interfaceHandler.StartBrowse(_serviceTypes.Select(st => new Name(st.ToLower() + ".local.")));
+                                }
+                                if (networkInterface.OperationalStatus == OperationalStatus.Up)
+                                {
+                                    interfaceHandler.Enable();
+                                }
+                                else
+                                {
+                                    interfaceHandler.Disable();
+                                }
+                                handlers.Remove(interfaceHandler);
+                            }
+                        }
                     }
-                    if (networkInterface.OperationalStatus == OperationalStatus.Up)
-                    {
-                        interfaceHandler.Enable();
-                    }
-                    else
-                    {
-                        interfaceHandler.Disable();
-                    }
-                    handlers.Remove(interfaceHandler);
                 }
                 foreach (NetworkInterfaceHandler handler in handlers)
                 {
-                    _interfaceHandlers.Remove(handler.Index);
+                    _interfaceHandlers.Remove(handler.key);
                     handler.Disable();
                     OnNetworkInterfaceRemoved(handler.NetworkInterface);
                 }
@@ -294,7 +303,7 @@ namespace Tmds.MDns
 
         private readonly HashSet<ServiceAnnouncement> _services = new HashSet<ServiceAnnouncement>();
         private readonly Dictionary<Tuple<string, Name>, ServiceAnnouncement> _serviceAnnouncements = new Dictionary<Tuple<string, Name>, ServiceAnnouncement>();
-        private Dictionary<int, NetworkInterfaceHandler> _interfaceHandlers;
+        private Dictionary<string, NetworkInterfaceHandler> _interfaceHandlers;
         NetworkAddressChangedEventHandler _networkAddressChangedEventHandler;
         private List<string> _serviceTypes = new List<string>();
     }
