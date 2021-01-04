@@ -126,9 +126,14 @@ namespace Tmds.MDns
         {
             try
             {
+                var socket = _socket;
+                if (socket == null)
+                {
+                    return;
+                }
                 foreach (ArraySegment<byte> segment in packets)
                 {
-                    _socket.SendTo(segment.Array, segment.Offset, segment.Count, SocketFlags.None, IPv4EndPoint);
+                    socket.SendTo(segment.Array, segment.Offset, segment.Count, SocketFlags.None, IPv4EndPoint);
                 }
             }
             catch
@@ -194,7 +199,7 @@ namespace Tmds.MDns
             lock (this)
             {
 #if NETSTANDARD1_3
-                if (args.SocketError != SocketError.Success)
+                if (args.SocketError != SocketError.Success || _socket == null)
                 {
                     return;
                 }
