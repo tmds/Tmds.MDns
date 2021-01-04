@@ -3,7 +3,7 @@
   <PropertyGroup>
     <Description>This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).</Description>
     <AssemblyTitle>Tmds.MDns</AssemblyTitle>
-    <VersionPrefix>0.7.1</VersionPrefix>
+    <VersionPrefix>0.7.2</VersionPrefix>
     <Authors>Tom Deseyn</Authors>
     <TargetFrameworks>netstandard1.3;net45;net40</TargetFrameworks>
     <AssemblyName>Tmds.MDns</AssemblyName>
