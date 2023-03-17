@@ -5,7 +5,7 @@
     <AssemblyTitle>Tmds.MDns</AssemblyTitle>
     <VersionPrefix>0.7.2</VersionPrefix>
     <Authors>Tom Deseyn</Authors>
-    <TargetFrameworks>netstandard1.3;net45;net40</TargetFrameworks>
+    <TargetFrameworks>netstandard1.3;net45;net40;net60</TargetFrameworks>
     <AssemblyName>Tmds.MDns</AssemblyName>
     <PackageId>Tmds.MDns</PackageId>
     <PackageTags>mdns;avahi;zeroconf;rfc6762;rfc6763</PackageTags>
