@@ -20,6 +20,10 @@ using System.Net.NetworkInformation;
 using System.Threading;
 using System.Linq;
 
+#if NET6_0
+using System.Runtime.InteropServices;
+#endif
+
 namespace Tmds.MDns
 {
     public class ServiceBrowser
@@ -32,7 +36,7 @@ namespace Tmds.MDns
 
         public void StartBrowse(string serviceType, SynchronizationContext synchronizationContext)
         {
-            StartBrowse(new [] { serviceType }, synchronizationContext);
+            StartBrowse(new[] { serviceType }, synchronizationContext);
         }
 
         public void StartBrowse(IEnumerable<string> serviceTypes, SynchronizationContext synchronizationContext)
@@ -237,6 +241,14 @@ namespace Tmds.MDns
                 NetworkInterface[] networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
                 foreach (NetworkInterface networkInterface in networkInterfaces)
                 {
+                    var hasIPv4 = networkInterface.Supports(NetworkInterfaceComponent.IPv4);
+#if NET6_0
+                    // Pure IPv6 networks are only supported on Linux
+                    var hasIPv6 = networkInterface.Supports(NetworkInterfaceComponent.IPv6) && RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+#else
+                    var hasIPv6 = false;
+#endif
+
                     if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
                     {
                         continue;
@@ -245,17 +257,22 @@ namespace Tmds.MDns
                     {
                         continue;
                     }
-                    if (!networkInterface.Supports(NetworkInterfaceComponent.IPv4))
+                    if (!hasIPv4 && !hasIPv6)
                     {
+                        // No IPv4 and IPv6
+                        continue;
+                    }
+                    if (!hasIPv4 && !RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                    {
+                        // Pure IPv6 is only supported on Linux
                         continue;
                     }
 
-                    int index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
                     NetworkInterfaceHandler interfaceHandler;
+                    int index = hasIPv4 ? networkInterface.GetIPProperties().GetIPv4Properties().Index : networkInterface.GetIPProperties().GetIPv6Properties().Index;
                     _interfaceHandlers.TryGetValue(index, out interfaceHandler);
                     if (interfaceHandler == null)
                     {
-                        index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
                         interfaceHandler = new NetworkInterfaceHandler(this, networkInterface);
                         _interfaceHandlers.Add(index, interfaceHandler);
                         OnNetworkInterfaceAdded(networkInterface);

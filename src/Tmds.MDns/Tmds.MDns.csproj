@@ -6,6 +6,7 @@
     <VersionPrefix>0.7.2</VersionPrefix>
     <Authors>Tom Deseyn</Authors>
     <TargetFrameworks>netstandard1.3;net45;net40;net60</TargetFrameworks>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>Tmds.MDns</AssemblyName>
     <PackageId>Tmds.MDns</PackageId>
     <PackageTags>mdns;avahi;zeroconf;rfc6762;rfc6763</PackageTags>
@@ -25,6 +26,10 @@
   <ItemGroup Condition=" '$(TargetFramework)' == 'net40' ">
     <Reference Include="System" />
     <Reference Include="Microsoft.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net60' ">
+    <PackageReference Include="Tmds.LibC" Version="0.5.0" />
   </ItemGroup>
 
 </Project>

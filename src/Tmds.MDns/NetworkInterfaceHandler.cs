@@ -24,6 +24,10 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Threading;
 
+#if NET6_0
+using System.Runtime.InteropServices;
+#endif
+
 namespace Tmds.MDns
 {
     class NetworkInterfaceHandler
@@ -32,7 +36,14 @@ namespace Tmds.MDns
         {
             ServiceBrowser = serviceBrowser;
             NetworkInterface = networkInterface;
-            _index = NetworkInterface.GetIPProperties().GetIPv4Properties().Index;
+            _hasIPv4 = networkInterface.Supports(NetworkInterfaceComponent.IPv4);
+#if NET6_0
+                // Pure IPv6 networks are only supported on Linux
+                _hasIPv6 = networkInterface.Supports(NetworkInterfaceComponent.IPv6) && RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+#else
+            _hasIPv6 = false;
+#endif
+            _index = _hasIPv4 ? NetworkInterface.GetIPProperties().GetIPv4Properties().Index : NetworkInterface.GetIPProperties().GetIPv6Properties().Index;
 #if NETSTANDARD1_3
             _queryTimer = new Timer(OnQueryTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
             _receiveEventArgs = new SocketAsyncEventArgs();
@@ -67,13 +78,28 @@ namespace Tmds.MDns
             {
                 _isEnabled = true;
 
-                _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-                _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, IPAddress.HostToNetworkOrder(_index));
-                _socket.Bind(new IPEndPoint(IPAddress.Any, IPv4EndPoint.Port));
-                IPAddress ip = IPv4EndPoint.Address;
-                _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(ip, _index));
-                _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
+
+                if (_hasIPv4)
+                {
+                    _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                    _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                    _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, IPAddress.HostToNetworkOrder(_index));
+                    _socket.Bind(new IPEndPoint(IPAddress.Any, IPv4EndPoint.Port));
+                    IPAddress ip = IPv4EndPoint.Address;
+                    _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(ip, _index));
+                    _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
+                }
+                else
+                {
+                    _socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
+                    _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                    // The MulticastInterface fails for IPv6, see: https://github.com/dotnet/runtime/issues/24255
+                    LinuxHelper.MultiCastV6(_socket, _index);
+                    _socket.Bind(new IPEndPoint(IPAddress.IPv6Any, IPv6EndPoint.Port));
+                    IPAddress ip = IPv6EndPoint.Address;
+                    _socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.AddMembership, new IPv6MulticastOption(ip, _index));
+                    _socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastTimeToLive, 1);
+                }
 
                 StartReceive();
                 StartQuery();
@@ -121,19 +147,21 @@ namespace Tmds.MDns
         public NetworkInterface NetworkInterface { get; private set; }
         public int Index { get { return _index; } }
         public static readonly IPEndPoint IPv4EndPoint = new IPEndPoint(IPAddress.Parse("224.0.0.251"), 5353);
+        public static readonly IPEndPoint IPv6EndPoint = new IPEndPoint(IPAddress.Parse("ff02::fb"), 5353);
 
         internal void Send(IList<ArraySegment<byte>> packets)
         {
             try
             {
                 var socket = _socket;
+                var endpoint = socket.AddressFamily == AddressFamily.InterNetwork ? IPv4EndPoint : IPv6EndPoint;
                 if (socket == null)
                 {
                     return;
                 }
                 foreach (ArraySegment<byte> segment in packets)
                 {
-                    socket.SendTo(segment.Array, segment.Offset, segment.Count, SocketFlags.None, IPv4EndPoint);
+                    socket.SendTo(segment.Array, segment.Offset, segment.Count, SocketFlags.None, endpoint);
                 }
             }
             catch
@@ -698,6 +726,8 @@ namespace Tmds.MDns
 
         private bool _isEnabled;
         private Socket _socket;
+        private readonly bool _hasIPv4;
+        private readonly bool _hasIPv6;
         private readonly int _index;
         private readonly byte[] _buffer = new byte[9000];
 #if NETSTANDARD1_3
