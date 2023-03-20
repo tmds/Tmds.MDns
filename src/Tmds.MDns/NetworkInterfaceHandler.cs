@@ -40,8 +40,6 @@ namespace Tmds.MDns
 #if NET6_0
                 // Pure IPv6 networks are only supported on Linux
                 _hasIPv6 = networkInterface.Supports(NetworkInterfaceComponent.IPv6) && RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-#else
-            _hasIPv6 = false;
 #endif
             _index = _hasIPv4 ? NetworkInterface.GetIPProperties().GetIPv4Properties().Index : NetworkInterface.GetIPProperties().GetIPv6Properties().Index;
 #if NETSTANDARD1_3
@@ -727,7 +725,9 @@ namespace Tmds.MDns
         private bool _isEnabled;
         private Socket _socket;
         private readonly bool _hasIPv4;
+#if NET6_0
         private readonly bool _hasIPv6;
+#endif
         private readonly int _index;
         private readonly byte[] _buffer = new byte[9000];
 #if NETSTANDARD1_3

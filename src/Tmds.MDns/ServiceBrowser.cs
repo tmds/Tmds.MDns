@@ -262,11 +262,6 @@ namespace Tmds.MDns
                         // No IPv4 and IPv6
                         continue;
                     }
-                    if (!hasIPv4 && !RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                    {
-                        // Pure IPv6 is only supported on Linux
-                        continue;
-                    }
 
                     NetworkInterfaceHandler interfaceHandler;
                     int index = hasIPv4 ? networkInterface.GetIPProperties().GetIPv4Properties().Index : networkInterface.GetIPProperties().GetIPv6Properties().Index;
