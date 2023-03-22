@@ -3,9 +3,9 @@
   <PropertyGroup>
     <Description>This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).</Description>
     <AssemblyTitle>Tmds.MDns</AssemblyTitle>
-    <VersionPrefix>0.7.2</VersionPrefix>
+    <VersionPrefix>0.7.2-RS</VersionPrefix>
     <Authors>Tom Deseyn</Authors>
-    <TargetFrameworks>netstandard1.3;net45;net40;net60</TargetFrameworks>
+    <TargetFrameworks>net60</TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyName>Tmds.MDns</AssemblyName>
     <PackageId>Tmds.MDns</PackageId>
@@ -14,22 +14,7 @@
     <RepositoryUrl>git://github.com/tmds/Tmds.MDns</RepositoryUrl>
   </PropertyGroup>
 
-  <ItemGroup Condition=" '$(TargetFramework)' == 'netstandard1.3' ">
-    <PackageReference Include="System.Net.NetworkInformation" Version="4.1.0" />
-  </ItemGroup>
-
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net45' ">
-    <Reference Include="System" />
-    <Reference Include="Microsoft.CSharp" />
-  </ItemGroup>
-
-  <ItemGroup Condition=" '$(TargetFramework)' == 'net40' ">
-    <Reference Include="System" />
-    <Reference Include="Microsoft.CSharp" />
-  </ItemGroup>
-
   <ItemGroup Condition=" '$(TargetFramework)' == 'net60' ">
     <PackageReference Include="Tmds.LibC" Version="0.5.0" />
   </ItemGroup>
-
 </Project>
