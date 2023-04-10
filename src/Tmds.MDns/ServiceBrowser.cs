@@ -19,7 +19,6 @@ using System.Collections.Generic;
 using System.Net.NetworkInformation;
 using System.Threading;
 using System.Linq;
-using System.Runtime.InteropServices;
 
 namespace Tmds.MDns
 {
@@ -235,12 +234,11 @@ namespace Tmds.MDns
                 }
 
                 HashSet<NetworkInterfaceHandler> handlers = new HashSet<NetworkInterfaceHandler>(_interfaceHandlers.Values);
-                var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();//.Where(iFace => iFace.Name == "eth_internal");
+                var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
                 foreach (NetworkInterface networkInterface in networkInterfaces)
                 {
                     var hasIPv4 = networkInterface.Supports(NetworkInterfaceComponent.IPv4);
-                    // Pure IPv6 networks are only supported on Linux
-                    var hasIPv6 = networkInterface.Supports(NetworkInterfaceComponent.IPv6) && RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+                    var hasIPv6 = networkInterface.Supports(NetworkInterfaceComponent.IPv6);
 
                     if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
                     {

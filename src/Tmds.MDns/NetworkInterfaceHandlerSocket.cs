@@ -27,61 +27,53 @@ using System.Runtime.InteropServices;
 
 namespace Tmds.MDns
 {
-    class MdnsSocket : IDisposable
+    class NetworkInterfaceHandlerSocket : IDisposable
     {
         public static readonly IPEndPoint IPv4EndPoint = new IPEndPoint(IPAddress.Parse("224.0.0.251"), 5353);
         public static readonly IPEndPoint IPv6EndPoint = new IPEndPoint(IPAddress.Parse("ff02::fb"), 5353);
 
-        public static MdnsSocket CreateSocketIPv4(int index)
+        public static NetworkInterfaceHandlerSocket CreateSocketIPv4(int index)
         {
             var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, IPAddress.HostToNetworkOrder(index));
 
             socket.Bind(new IPEndPoint(IPAddress.Any, IPv4EndPoint.Port));
-            var tempEndpoint = new IPEndPoint(IPAddress.Any, IPv4EndPoint.Port);
 
             IPAddress ip = IPv4EndPoint.Address;
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(ip, index));
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
-            var info = new MdnsSocket(socket, IPv4EndPoint);
+            var info = new NetworkInterfaceHandlerSocket(socket, IPv4EndPoint);
             return info;
         }
 
-        public static MdnsSocket CreateSocketIPv6(int index)
+        public static NetworkInterfaceHandlerSocket CreateSocketIPv6(int index)
         {
             var socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
             socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-
-            // The MulticastInterface fails for IPv6, see: https://github.com/dotnet/runtime/issues/24255
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            {
-                LinuxHelper.MultiCastV6(socket, index);
-            }
+            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastInterface, index);
 
             socket.Bind(new IPEndPoint(IPAddress.IPv6Any, IPv6EndPoint.Port));
-            var tempEndpoint = new IPEndPoint(IPAddress.IPv6Any, IPv6EndPoint.Port);
 
             IPAddress ip = IPv6EndPoint.Address;
             socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.AddMembership, new IPv6MulticastOption(ip, index));
             socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastTimeToLive, 1);
-            var info = new MdnsSocket(socket, IPv6EndPoint);
+            var info = new NetworkInterfaceHandlerSocket(socket, IPv6EndPoint);
             return info;
         }
 
-        private MdnsSocket(Socket socket, IPEndPoint endpoint)
+        private NetworkInterfaceHandlerSocket(Socket socket, IPEndPoint endpoint)
         {
             _socket = socket;
-            _endPoint = endpoint;
+            _receiveEndPoint = endpoint;
             var tempEndpoint = new IPEndPoint(endpoint.Address, endpoint.Port);
-            _senderEndpoint = (EndPoint)tempEndpoint;
+            _sendEndpoint = (EndPoint)tempEndpoint;
         }
 
         public delegate void OnReceivedFrom(IPAddress from, MemoryStream stream);
         private Socket _socket;
-        private IPEndPoint _endPoint;
-        private EndPoint _senderEndpoint;
+        private readonly IPEndPoint _receiveEndPoint;
+        private EndPoint _sendEndpoint;
         private readonly byte[] _buffer = new byte[9000];
         OnReceivedFrom _onReceivedFrom;
 
@@ -93,34 +85,46 @@ namespace Tmds.MDns
 
         public void SendPackets(IList<ArraySegment<byte>> packets)
         {
-            if (_socket == null)
+            if (_socket == null || _isDisposed)
             {
                 return;
             }
 
             foreach (ArraySegment<byte> segment in packets)
             {
-                _socket.SendTo(segment.Array, segment.Offset, segment.Count, SocketFlags.None, _endPoint);
+                _socket.SendTo(segment.Array, segment.Offset, segment.Count, SocketFlags.None, _receiveEndPoint);
             }
         }
 
         private void StartReceive()
         {
-            _socket.BeginReceiveFrom(_buffer, 0, _buffer.Length, SocketFlags.None, ref _senderEndpoint, OnReceive, null);
+            if (_socket == null || _isDisposed)
+            {
+                return;
+            }
+
+            try
+            {
+                _socket.BeginReceiveFrom(_buffer, 0, _buffer.Length, SocketFlags.None, ref _sendEndpoint, OnReceive, null);
+            }
+            catch (Exception)
+            {
+            }
         }
 
         private void OnReceive(IAsyncResult ar)
         {
+            if (_socket == null || _isDisposed)
+            {
+                return;
+            }
+
             IPAddress receivedFrom;
             int length;
             try
             {
-                if (_socket == null)
-                {
-                    return;
-                }
-                length = _socket.EndReceiveFrom(ar, ref _senderEndpoint);
-                IPEndPoint remoteIpEndPoint = _senderEndpoint as IPEndPoint;
+                length = _socket.EndReceiveFrom(ar, ref _sendEndpoint);
+                IPEndPoint remoteIpEndPoint = _sendEndpoint as IPEndPoint;
                 receivedFrom = remoteIpEndPoint?.Address;
 
                 var stream = new MemoryStream(_buffer, 0, length);
@@ -133,8 +137,12 @@ namespace Tmds.MDns
             StartReceive();
         }
 
+        private bool _isDisposed = false;
+
         public void Dispose()
         {
+            _isDisposed = true;
+            _socket.Close();
             _socket.Dispose();
             _socket = null;
         }

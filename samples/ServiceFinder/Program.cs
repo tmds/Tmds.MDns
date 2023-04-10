@@ -24,10 +24,22 @@ namespace ServiceFinder
             serviceBrowser.ServiceAdded += onServiceAdded;
             serviceBrowser.ServiceRemoved += onServiceRemoved;
             serviceBrowser.ServiceChanged += onServiceChanged;
+            serviceBrowser.NetworkInterfaceAdded += OnNetworkInterfaceAdded;
+            serviceBrowser.NetworkInterfaceRemoved += OnNetworkInterfaceRemoved;
 
             Console.WriteLine("Browsing for type: {0}", serviceType);
             serviceBrowser.StartBrowse(serviceType);
             Console.ReadLine();
+        }
+
+        static void OnNetworkInterfaceAdded(object sender, NetworkInterfaceEventArgs e)
+        {
+            Console.WriteLine($"OnNetworkInterfaceAdded {e.NetworkInterface.Name}");
+        }
+
+        static void OnNetworkInterfaceRemoved(object sender, NetworkInterfaceEventArgs e)
+        {
+            Console.WriteLine($"OnNetworkInterfaceRemoved {e.NetworkInterface.Name}");
         }
 
         static void onServiceChanged(object sender, ServiceAnnouncementEventArgs e)

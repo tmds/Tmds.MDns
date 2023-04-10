@@ -23,7 +23,6 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Threading;
-using System.Runtime.InteropServices;
 
 namespace Tmds.MDns
 {
@@ -33,9 +32,8 @@ namespace Tmds.MDns
         {
             ServiceBrowser = serviceBrowser;
             NetworkInterface = networkInterface;
-            _socketInfo = new List<MdnsSocket>();
+            _sockets = new List<NetworkInterfaceHandlerSocket>();
             _hasIPv4 = networkInterface.Supports(NetworkInterfaceComponent.IPv4);
-            // IPv6 networks are only supported on Linux
             _hasIPv6 = networkInterface.Supports(NetworkInterfaceComponent.IPv6);
             _index = _hasIPv4 ? NetworkInterface.GetIPProperties().GetIPv4Properties().Index : NetworkInterface.GetIPProperties().GetIPv6Properties().Index;
             _queryTimer = new Timer(OnQueryTimerElapsed);
@@ -72,14 +70,14 @@ namespace Tmds.MDns
                 // requests via IPv4 we will never discover the device.
                 if (_hasIPv4)
                 {
-                    _socketInfo.Add(MdnsSocket.CreateSocketIPv4(Index));
+                    _sockets.Add(NetworkInterfaceHandlerSocket.CreateSocketIPv4(Index));
                 }
                 if (_hasIPv6)
                 {
-                    _socketInfo.Add(MdnsSocket.CreateSocketIPv6(Index));
+                    _sockets.Add(NetworkInterfaceHandlerSocket.CreateSocketIPv6(Index));
                 }
 
-                foreach (var s in _socketInfo)
+                foreach (var s in _sockets)
                 {
                     s.StartReceive(OnReceive);
                 }
@@ -107,10 +105,11 @@ namespace Tmds.MDns
                     serviceHandler.ServiceInfos.Clear();
                 }
 
-                foreach (var s in _socketInfo)
+                foreach (var s in _sockets)
                 {
                     s.Dispose();
                 }
+                _sockets.Clear();
 
                 foreach (var serviceKV in _serviceInfos)
                 {
@@ -135,7 +134,7 @@ namespace Tmds.MDns
         {
             try
             {
-                foreach (var s in _socketInfo)
+                foreach (var s in _sockets)
                 {
                     s.SendPackets(packets);
                 }
@@ -720,7 +719,7 @@ namespace Tmds.MDns
         }
 
         private bool _isEnabled;
-        private List<MdnsSocket> _socketInfo;
+        private List<NetworkInterfaceHandlerSocket> _sockets;
         private readonly bool _hasIPv4;
         private readonly bool _hasIPv6;
         private readonly int _index;
