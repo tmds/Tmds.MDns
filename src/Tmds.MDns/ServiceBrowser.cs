@@ -54,7 +54,9 @@ namespace Tmds.MDns
             IsBrowsing = false;
 
             NetworkChange.NetworkAddressChanged -= _networkAddressChangedEventHandler;
+#if NETSTANDARD2_0_OR_GREATER
             NetworkChange.NetworkAvailabilityChanged -= _networkAvailabilityChangedEventHandler;
+#endif
 
             lock (_interfaceHandlers)
             {
@@ -222,14 +224,15 @@ namespace Tmds.MDns
             {
                 CheckNetworkInterfaceStatuses(interfaceHandlers);
             };
+            NetworkChange.NetworkAddressChanged += _networkAddressChangedEventHandler;
 
+#if NETSTANDARD2_0_OR_GREATER
             _networkAvailabilityChangedEventHandler = (s, e) =>
             {
                  CheckNetworkInterfaceStatuses(interfaceHandlers);
             };
-
-            NetworkChange.NetworkAddressChanged += _networkAddressChangedEventHandler;
             NetworkChange.NetworkAvailabilityChanged += _networkAvailabilityChangedEventHandler;
+#endif
 
             CheckNetworkInterfaceStatuses(interfaceHandlers);
         }
@@ -309,7 +312,9 @@ namespace Tmds.MDns
         private readonly Dictionary<Tuple<string, Name>, ServiceAnnouncement> _serviceAnnouncements = new Dictionary<Tuple<string, Name>, ServiceAnnouncement>();
         private Dictionary<int, NetworkInterfaceHandler> _interfaceHandlers;
         NetworkAddressChangedEventHandler _networkAddressChangedEventHandler;
+#if NETSTANDARD2_0_OR_GREATER
         NetworkAvailabilityChangedEventHandler _networkAvailabilityChangedEventHandler;
+#endif
         private List<string> _serviceTypes = new List<string>();
     }
 }

@@ -68,10 +68,19 @@ namespace Tmds.MDns
             _receiveEndPoint = endpoint;
             var tempEndpoint = new IPEndPoint(endpoint.Address, endpoint.Port);
             _sendEndpoint = (EndPoint)tempEndpoint;
+#if NETSTANDARD1_3
+            _receiveEventArgs = new SocketAsyncEventArgs();
+            _receiveEventArgs.SetBuffer(_buffer, 0, _buffer.Length);
+            _receiveEventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnReceive);
+            _receiveEventArgs.RemoteEndPoint = (EndPoint)tempEndpoint;
+#endif
         }
 
         public delegate void OnReceivedFrom(IPAddress from, MemoryStream stream);
         private Socket _socket;
+#if NETSTANDARD1_3
+        private readonly SocketAsyncEventArgs _receiveEventArgs;
+#endif
         private readonly IPEndPoint _receiveEndPoint;
         private EndPoint _sendEndpoint;
         private readonly byte[] _buffer = new byte[9000];
@@ -105,15 +114,40 @@ namespace Tmds.MDns
 
             try
             {
+#if NETSTANDARD1_3
+            bool pending = _socket.ReceiveFromAsync(_receiveEventArgs);
+            if (!pending)
+            {
+                OnReceive(null, _receiveEventArgs);
+            }
+#else
                 _socket.BeginReceiveFrom(_buffer, 0, _buffer.Length, SocketFlags.None, ref _sendEndpoint, OnReceive, null);
+#endif
             }
             catch (Exception)
             {
             }
         }
 
+#if NETSTANDARD1_3
+        private void OnReceive(object sender, SocketAsyncEventArgs args)
+#else
         private void OnReceive(IAsyncResult ar)
+#endif
         {
+#if NETSTANDARD1_3
+            if (args.SocketError != SocketError.Success || _socket == null)
+            {
+                return;
+            }
+            int length = args.BytesTransferred;
+       
+            IPAddress receivedFrom;
+            IPEndPoint remoteIpEndPoint = _receiveEventArgs.RemoteEndPoint as IPEndPoint;
+            receivedFrom = remoteIpEndPoint?.Address;
+            var stream = new MemoryStream(_buffer, 0, length);
+            _onReceivedFrom?.Invoke(receivedFrom, stream);
+#else
             if (_socket == null || _isDisposed)
             {
                 return;
@@ -134,6 +168,7 @@ namespace Tmds.MDns
             {
             }
 
+#endif
             StartReceive();
         }
 
@@ -142,7 +177,6 @@ namespace Tmds.MDns
         public void Dispose()
         {
             _isDisposed = true;
-            _socket.Close();
             _socket.Dispose();
             _socket = null;
         }

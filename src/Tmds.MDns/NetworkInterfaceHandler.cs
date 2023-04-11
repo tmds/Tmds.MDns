@@ -36,7 +36,11 @@ namespace Tmds.MDns
             _isIPv4Enabled = false;
             _isIPv6Enabled = false;
             _index = index;
+#if NETSTANDARD1_3
+            _queryTimer = new Timer(OnQueryTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
+#else
             _queryTimer = new Timer(OnQueryTimerElapsed);
+#endif
         }
 
         public void StartBrowse(IEnumerable<Name> names)
