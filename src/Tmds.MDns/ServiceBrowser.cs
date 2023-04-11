@@ -54,6 +54,8 @@ namespace Tmds.MDns
             IsBrowsing = false;
 
             NetworkChange.NetworkAddressChanged -= _networkAddressChangedEventHandler;
+            NetworkChange.NetworkAvailabilityChanged -= _networkAvailabilityChangedEventHandler;
+
             lock (_interfaceHandlers)
             {
                 foreach (var interfaceHandler in _interfaceHandlers.Values)
@@ -220,7 +222,15 @@ namespace Tmds.MDns
             {
                 CheckNetworkInterfaceStatuses(interfaceHandlers);
             };
+
+            _networkAvailabilityChangedEventHandler = (s, e) =>
+            {
+                 CheckNetworkInterfaceStatuses(interfaceHandlers);
+            };
+
             NetworkChange.NetworkAddressChanged += _networkAddressChangedEventHandler;
+            NetworkChange.NetworkAvailabilityChanged += _networkAvailabilityChangedEventHandler;
+
             CheckNetworkInterfaceStatuses(interfaceHandlers);
         }
 
@@ -259,7 +269,7 @@ namespace Tmds.MDns
                     _interfaceHandlers.TryGetValue(index, out interfaceHandler);
                     if (interfaceHandler == null)
                     {
-                        interfaceHandler = new NetworkInterfaceHandler(this, networkInterface);
+                        interfaceHandler = new NetworkInterfaceHandler(this, index, networkInterface);
                         _interfaceHandlers.Add(index, interfaceHandler);
                         OnNetworkInterfaceAdded(networkInterface);
                         interfaceHandler.StartBrowse(_serviceTypes.Select(st => new Name(st.ToLower() + ".local.")));
@@ -299,6 +309,7 @@ namespace Tmds.MDns
         private readonly Dictionary<Tuple<string, Name>, ServiceAnnouncement> _serviceAnnouncements = new Dictionary<Tuple<string, Name>, ServiceAnnouncement>();
         private Dictionary<int, NetworkInterfaceHandler> _interfaceHandlers;
         NetworkAddressChangedEventHandler _networkAddressChangedEventHandler;
+        NetworkAvailabilityChangedEventHandler _networkAvailabilityChangedEventHandler;
         private List<string> _serviceTypes = new List<string>();
     }
 }

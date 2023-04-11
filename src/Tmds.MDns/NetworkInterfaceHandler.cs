@@ -28,14 +28,14 @@ namespace Tmds.MDns
 {
     class NetworkInterfaceHandler
     {
-        public NetworkInterfaceHandler(ServiceBrowser serviceBrowser, NetworkInterface networkInterface)
+        public NetworkInterfaceHandler(ServiceBrowser serviceBrowser, int index, NetworkInterface networkInterface)
         {
             ServiceBrowser = serviceBrowser;
             NetworkInterface = networkInterface;
             _sockets = new List<NetworkInterfaceHandlerSocket>();
-            _hasIPv4 = networkInterface.Supports(NetworkInterfaceComponent.IPv4);
-            _hasIPv6 = networkInterface.Supports(NetworkInterfaceComponent.IPv6);
-            _index = _hasIPv4 ? NetworkInterface.GetIPProperties().GetIPv4Properties().Index : NetworkInterface.GetIPProperties().GetIPv6Properties().Index;
+            _isIPv4Enabled = false;
+            _isIPv6Enabled = false;
+            _index = index;
             _queryTimer = new Timer(OnQueryTimerElapsed);
         }
 
@@ -46,7 +46,7 @@ namespace Tmds.MDns
                 var serviceHandler = new ServiceHandler(this, name);
                 _serviceHandlers.Add(name, serviceHandler);
             }
-            if (_isEnabled)
+            if (IsEnabled)
             {
                 StartQuery();
             }
@@ -54,48 +54,62 @@ namespace Tmds.MDns
 
         public void Enable()
         {
-            if (_isEnabled)
-            {
-                return;
-            }
+            // Check for support as there might have been a change. It has been noticed that on
+            // some devices the IPv6 stack is not available the first time the network interface
+            // enabled. The subsequent call backs on the Address Change or Network Change handlers
+            // will not recreate this handler and as it was already enable will not support the
+            // network protocol that was slower in coming up.
+            // This issue will be seen when this library is used as part of a network service that
+            // starts with the device and there are some other services reconfiguring the network
+            // interfaces causing those interfaces to go up/down
+            var supportsIPv4 = NetworkInterface.Supports(NetworkInterfaceComponent.IPv4);
+            var supportsIPv6 = NetworkInterface.Supports(NetworkInterfaceComponent.IPv6);
 
             lock (this)
             {
-                _isEnabled = true;
+                var socketsChanged = false;
 
                 // When supporting IPv4 and IPv6 we need to make sure we listen and broadcast our
                 // requests on both stacks.
                 // Example.
                 // Local network interface support IPv4 and IPv6. Remote only IPv6. If we only send
                 // requests via IPv4 we will never discover the device.
-                if (_hasIPv4)
+                if (supportsIPv4 && ! _isIPv4Enabled)
                 {
-                    _sockets.Add(NetworkInterfaceHandlerSocket.CreateSocketIPv4(Index));
-                }
-                if (_hasIPv6)
-                {
-                    _sockets.Add(NetworkInterfaceHandlerSocket.CreateSocketIPv6(Index));
-                }
-
-                foreach (var s in _sockets)
-                {
+                    _isIPv4Enabled = true;
+                    var s = NetworkInterfaceHandlerSocket.CreateSocketIPv4(Index);
+                    _sockets.Add(s);
                     s.StartReceive(OnReceive);
+                    socketsChanged = true;
                 }
 
-                StartQuery();
+                if (supportsIPv6 && !_isIPv6Enabled)
+                {
+                    _isIPv6Enabled = true;
+                    var s = NetworkInterfaceHandlerSocket.CreateSocketIPv6(Index);
+                    _sockets.Add(s);
+                    s.StartReceive(OnReceive);
+                    socketsChanged = true;
+                }
+
+                if (socketsChanged)
+                {
+                    StartQuery();
+                }
             }
         }
 
         public void Disable()
         {
-            if (!_isEnabled)
+            if (!IsEnabled)
             {
                 return;
             }
 
             lock (this)
             {
-                _isEnabled = false;
+                _isIPv4Enabled = false;
+                _isIPv6Enabled = false;
 
                 StopQuery();
 
@@ -204,13 +218,13 @@ namespace Tmds.MDns
                 // The ip address can not be reached if we don't have IPv6 enabled
                 // or when the received address is not from the same interface                
                 case AddressFamily.InterNetworkV6:
-                    if (!_hasIPv6) return false;
+                    if (!_isIPv6Enabled) return false;
                     return receivedFrom.ScopeId != _index;
 
                 // The ip address can not be reached if we don't have IPv4 enabled
                 // or when the received address is not is the same subnet as our interface
                 case AddressFamily.InterNetwork:
-                    if (!_hasIPv4) return false;
+                    if (!_isIPv4Enabled) return false;
                     var mask = GetSubnetMask();
                     var local = GetIPv4Address();
                     if (mask != null && local != null)
@@ -718,10 +732,10 @@ namespace Tmds.MDns
             _queryTimer.Change(ms, Timeout.Infinite);
         }
 
-        private bool _isEnabled;
+        private bool IsEnabled { get { return _isIPv4Enabled || _isIPv6Enabled; } }
         private List<NetworkInterfaceHandlerSocket> _sockets;
-        private readonly bool _hasIPv4;
-        private readonly bool _hasIPv6;
+        private bool _isIPv4Enabled;
+        private bool _isIPv6Enabled;
         private readonly int _index;
         private readonly Dictionary<Name, ServiceInfo> _packetServiceInfos = new Dictionary<Name, ServiceInfo>();
         private readonly Dictionary<Name, HostAddresses> _packetHostAddresses = new Dictionary<Name, HostAddresses>();
