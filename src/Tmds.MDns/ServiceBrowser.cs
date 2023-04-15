@@ -54,9 +54,7 @@ namespace Tmds.MDns
             IsBrowsing = false;
 
             NetworkChange.NetworkAddressChanged -= _networkAddressChangedEventHandler;
-#if NETSTANDARD2_0_OR_GREATER
             NetworkChange.NetworkAvailabilityChanged -= _networkAvailabilityChangedEventHandler;
-#endif
 
             lock (_interfaceHandlers)
             {
@@ -226,13 +224,11 @@ namespace Tmds.MDns
             };
             NetworkChange.NetworkAddressChanged += _networkAddressChangedEventHandler;
 
-#if NETSTANDARD2_0_OR_GREATER
             _networkAvailabilityChangedEventHandler = (s, e) =>
             {
                  CheckNetworkInterfaceStatuses(interfaceHandlers);
             };
             NetworkChange.NetworkAvailabilityChanged += _networkAvailabilityChangedEventHandler;
-#endif
 
             CheckNetworkInterfaceStatuses(interfaceHandlers);
         }
@@ -250,9 +246,6 @@ namespace Tmds.MDns
                 var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
                 foreach (NetworkInterface networkInterface in networkInterfaces)
                 {
-                    var hasIPv4 = networkInterface.Supports(NetworkInterfaceComponent.IPv4);
-                    var hasIPv6 = networkInterface.Supports(NetworkInterfaceComponent.IPv6);
-
                     if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
                     {
                         continue;
@@ -261,25 +254,38 @@ namespace Tmds.MDns
                     {
                         continue;
                     }
-                    if (!hasIPv4 && !hasIPv6)
+
+                    int key;
+                    NetworkInterfaceHandler interfaceHandler;
+                    try
                     {
-                        // No IPv4 and IPv6
+                        var hasIPv4 = networkInterface.Supports(NetworkInterfaceComponent.IPv4);
+                        var hasIPv6 = networkInterface.Supports(NetworkInterfaceComponent.IPv6);
+
+                        if (!hasIPv4 && !hasIPv6)
+                        {
+                            continue;
+                        }
+
+                        key = hasIPv4 ? networkInterface.GetIPProperties().GetIPv4Properties().Index
+                                      : networkInterface.GetIPProperties().GetIPv6Properties().Index;
+                    }
+                    // Mono does not support IPv6 properties and always throws NotImplementedException.
+                    catch (NotImplementedException)
+                    {
                         continue;
                     }
 
-                    NetworkInterfaceHandler interfaceHandler;
-                    int index = hasIPv4 ? networkInterface.GetIPProperties().GetIPv4Properties().Index : networkInterface.GetIPProperties().GetIPv6Properties().Index;
-                    _interfaceHandlers.TryGetValue(index, out interfaceHandler);
+                    _interfaceHandlers.TryGetValue(key, out interfaceHandler);
                     if (interfaceHandler == null)
                     {
-                        interfaceHandler = new NetworkInterfaceHandler(this, index, networkInterface);
-                        _interfaceHandlers.Add(index, interfaceHandler);
+                        interfaceHandler = new NetworkInterfaceHandler(this, key, networkInterface, _serviceTypes.Select(st => new Name(st.ToLower() + ".local.")));
+                        _interfaceHandlers.Add(key, interfaceHandler);
                         OnNetworkInterfaceAdded(networkInterface);
-                        interfaceHandler.StartBrowse(_serviceTypes.Select(st => new Name(st.ToLower() + ".local.")));
                     }
                     if (networkInterface.OperationalStatus == OperationalStatus.Up)
                     {
-                        interfaceHandler.Enable();
+                        interfaceHandler.Refresh(networkInterface);
                     }
                     else
                     {
@@ -289,7 +295,7 @@ namespace Tmds.MDns
                 }
                 foreach (NetworkInterfaceHandler handler in handlers)
                 {
-                    _interfaceHandlers.Remove(handler.Index);
+                    _interfaceHandlers.Remove(handler.Key);
                     handler.Disable();
                     OnNetworkInterfaceRemoved(handler.NetworkInterface);
                 }
@@ -312,9 +318,7 @@ namespace Tmds.MDns
         private readonly Dictionary<Tuple<string, Name>, ServiceAnnouncement> _serviceAnnouncements = new Dictionary<Tuple<string, Name>, ServiceAnnouncement>();
         private Dictionary<int, NetworkInterfaceHandler> _interfaceHandlers;
         NetworkAddressChangedEventHandler _networkAddressChangedEventHandler;
-#if NETSTANDARD2_0_OR_GREATER
         NetworkAvailabilityChangedEventHandler _networkAvailabilityChangedEventHandler;
-#endif
         private List<string> _serviceTypes = new List<string>();
     }
 }
