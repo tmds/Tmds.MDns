@@ -58,7 +58,7 @@ namespace Tmds.MDns
             }
 
             if ((IsIpv4Enabled || !supportsIPv4) &&
-                (IsIpv4Enabled || !supportsIPv6))
+                (IsIpv6Enabled || !supportsIPv6))
             {
                 return;
             }
@@ -245,7 +245,7 @@ namespace Tmds.MDns
         private bool IsLocalNetworkAddress(IPAddress address)
         {
             switch (address.AddressFamily)
-            {        
+            {
                 case AddressFamily.InterNetworkV6:
                     return address.ScopeId == _ipv6InterfaceIndex;
 
@@ -258,6 +258,7 @@ namespace Tmds.MDns
                     for (int i = 0; i < unicastAddresses.Count; i++)
                     {
                         var unicastAddress = unicastAddresses[i];
+
                         if (unicastAddress.Address.AddressFamily == AddressFamily.InterNetwork)
                         {
                             long addr1 = address.Address;
@@ -294,6 +295,7 @@ namespace Tmds.MDns
                 IPAddress receivedFrom = (args.RemoteEndPoint as IPEndPoint).Address;
                 if (!IsLocalNetworkAddress(receivedFrom))
                 {
+                    StartReceive(socket, args);
                     return;
                 }
 
