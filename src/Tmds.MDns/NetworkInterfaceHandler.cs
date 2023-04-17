@@ -35,11 +35,8 @@ namespace Tmds.MDns
         {
             ServiceBrowser = serviceBrowser;
             NetworkInterface = networkInterface;
-#if NETSTANDARD1_3
-            _queryTimer = new Timer(OnQueryTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
-#else
             _queryTimer = new Timer(OnQueryTimerElapsed);
-#endif
+
             foreach (var name in names)
             {
                 var serviceHandler = new ServiceHandler(this, name);
@@ -261,9 +258,9 @@ namespace Tmds.MDns
 
                         if (unicastAddress.Address.AddressFamily == AddressFamily.InterNetwork)
                         {
-                            long addr1 = address.Address;
-                            long addr2 = unicastAddress.Address.Address;
-                            long mask = unicastAddress.IPv4Mask.Address;
+                            var addr1 = BitConverter.ToUInt32(address.GetAddressBytes(), 0);
+                            var addr2 = BitConverter.ToUInt32(unicastAddress.Address.GetAddressBytes(), 0);
+                            var mask = BitConverter.ToUInt32(unicastAddress.IPv4Mask.GetAddressBytes(), 0);
                             if ((addr1 & mask) == (addr2 & mask))
                             {
                                 return true;
