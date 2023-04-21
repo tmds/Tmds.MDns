@@ -28,69 +28,101 @@ namespace Tmds.MDns
 {
     class NetworkInterfaceHandler
     {
-        public NetworkInterfaceHandler(ServiceBrowser serviceBrowser, NetworkInterface networkInterface)
+        private static readonly IPEndPoint IPv4EndPoint = new IPEndPoint(IPAddress.Parse("224.0.0.251"), 5353);
+        private static readonly IPEndPoint IPv6EndPoint = new IPEndPoint(IPAddress.Parse("ff02::fb"), 5353);
+
+        public NetworkInterfaceHandler(ServiceBrowser serviceBrowser, int key, NetworkInterface networkInterface, IEnumerable<Name> names)
         {
             ServiceBrowser = serviceBrowser;
             NetworkInterface = networkInterface;
-            _index = NetworkInterface.GetIPProperties().GetIPv4Properties().Index;
-#if NETSTANDARD1_3
-            _queryTimer = new Timer(OnQueryTimerElapsed, null, Timeout.Infinite, Timeout.Infinite);
-            _receiveEventArgs = new SocketAsyncEventArgs();
-            _receiveEventArgs.SetBuffer(_buffer, 0, _buffer.Length);
-            _receiveEventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(OnReceive);
-#else
             _queryTimer = new Timer(OnQueryTimerElapsed);
-#endif
-        }
 
-        public void StartBrowse(IEnumerable<Name> names)
-        {
             foreach (var name in names)
             {
                 var serviceHandler = new ServiceHandler(this, name);
                 _serviceHandlers.Add(name, serviceHandler);
             }
-            if (_isEnabled)
-            {
-                StartQuery();
-            }
         }
 
-        public void Enable()
+        public void Refresh(NetworkInterface networkInterface)
         {
-            if (_isEnabled)
+            var supportsIPv4 = networkInterface.Supports(NetworkInterfaceComponent.IPv4);
+            var supportsIPv6 = networkInterface.Supports(NetworkInterfaceComponent.IPv6);
+
+            if (supportsIPv4)
+            {
+                _unicastAddresses = networkInterface.GetIPProperties().UnicastAddresses;
+            }
+
+            if ((IsIpv4Enabled || !supportsIPv4) &&
+                (IsIpv6Enabled || !supportsIPv6))
             {
                 return;
             }
 
             lock (this)
             {
-                _isEnabled = true;
+                if (supportsIPv4 && _ipv4Socket == null)
+                {
+                    int index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
+                    _ipv4Socket = CreateIpv4Socket(index);
 
-                _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-                _socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, IPAddress.HostToNetworkOrder(_index));
-                _socket.Bind(new IPEndPoint(IPAddress.Any, IPv4EndPoint.Port));
-                IPAddress ip = IPv4EndPoint.Address;
-                _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(ip, _index));
-                _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
+                    StartReceive(_ipv4Socket, CreateEventArgs(_ipv4Socket, OnReceive));
+                }
 
-                StartReceive();
+                if (supportsIPv6 && _ipv6Socket == null)
+                {
+                    _ipv6InterfaceIndex = networkInterface.GetIPProperties().GetIPv6Properties().Index;
+                    _ipv6Socket = CreateIpv6Socket(_ipv6InterfaceIndex);
+
+                    StartReceive(_ipv6Socket, CreateEventArgs(_ipv6Socket, OnReceive));
+                }
+
                 StartQuery();
             }
+        }
+
+        private static Socket CreateIpv4Socket(int index)
+        {
+            var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, IPAddress.HostToNetworkOrder(index));
+            socket.Bind(new IPEndPoint(IPAddress.Any, IPv4EndPoint.Port));
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(IPv4EndPoint.Address, index));
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
+            return socket;
+        }
+
+        private static Socket CreateIpv6Socket(int index)
+        {
+            var socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
+            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastInterface, index);
+            socket.Bind(new IPEndPoint(IPAddress.IPv6Any, IPv6EndPoint.Port));
+            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.AddMembership, new IPv6MulticastOption(IPv6EndPoint.Address, index));
+            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastTimeToLive, 1);
+            return socket;
+        }
+
+        private static SocketAsyncEventArgs CreateEventArgs(Socket socket, EventHandler<SocketAsyncEventArgs> handler)
+        {
+            var args = new SocketAsyncEventArgs();
+            byte[] buffer = new byte[9000];
+            args.SetBuffer(buffer, 0, buffer.Length);
+            args.Completed += handler;
+            args.RemoteEndPoint = socket.LocalEndPoint;
+            return args;
         }
 
         public void Disable()
         {
-            if (!_isEnabled)
+            if (!IsIpv4Enabled && !IsIpv6Enabled)
             {
                 return;
             }
 
             lock (this)
             {
-                _isEnabled = false;
-
                 StopQuery();
 
                 foreach (var serviceHandlerKV in _serviceHandlers)
@@ -99,8 +131,13 @@ namespace Tmds.MDns
                     serviceHandler.ServiceInfos.Clear();
                 }
 
-                ((IDisposable)_socket).Dispose(); // .NET 3.5 Dispose is protected
-                _socket = null;
+                _ipv4Socket?.Dispose();
+                _ipv4Socket = null;
+                _unicastAddresses = null;
+
+                _ipv6Socket?.Dispose();
+                _ipv6Socket = null;
+                _ipv6InterfaceIndex = -1;
 
                 foreach (var serviceKV in _serviceInfos)
                 {
@@ -117,27 +154,37 @@ namespace Tmds.MDns
             }
         }
 
-        public ServiceBrowser ServiceBrowser { get; private set; }
-        public NetworkInterface NetworkInterface { get; private set; }
-        public int Index { get { return _index; } }
-        public static readonly IPEndPoint IPv4EndPoint = new IPEndPoint(IPAddress.Parse("224.0.0.251"), 5353);
+        public ServiceBrowser ServiceBrowser { get; }
+        public NetworkInterface NetworkInterface { get; }
+        public int Key { get; }
 
         internal void Send(IList<ArraySegment<byte>> packets)
         {
             try
             {
-                var socket = _socket;
-                if (socket == null)
+                var socket = _ipv4Socket;
+                if (socket != null)
                 {
-                    return;
+                    SendPackets(socket, packets);
                 }
-                foreach (ArraySegment<byte> segment in packets)
+
+                socket = _ipv6Socket;
+                if (socket != null)
                 {
-                    socket.SendTo(segment.Array, segment.Offset, segment.Count, SocketFlags.None, IPv4EndPoint);
+                    SendPackets(socket, packets);
                 }
             }
             catch
             { }
+        }
+
+        private static void SendPackets(Socket socket, IList<ArraySegment<byte>> packets)
+        {
+            foreach (ArraySegment<byte> segment in packets)
+            {
+                EndPoint sendToEndPoint = socket.AddressFamily == AddressFamily.InterNetwork ? IPv4EndPoint : IPv6EndPoint;
+                socket.SendTo(segment.Array, segment.Offset, segment.Count, SocketFlags.None, sendToEndPoint);
+            }
         }
 
         internal void OnServiceQuery(Name serviceName)
@@ -177,49 +224,80 @@ namespace Tmds.MDns
             }
         }
 
-        private void StartReceive()
+        private void StartReceive(Socket socket, SocketAsyncEventArgs args)
         {
-#if NETSTANDARD1_3
-            bool pending = _socket.ReceiveAsync(_receiveEventArgs);
-            if (!pending)
+            try
             {
-                OnReceive(null, _receiveEventArgs);
+                bool pending = socket.ReceiveFromAsync(args);
+                if (!pending)
+                {
+                    OnReceive(socket, args);
+                }
             }
-#else
-            _socket.BeginReceive(_buffer, 0, _buffer.Length, SocketFlags.None, OnReceive, null);
-#endif
+            catch (Exception)
+            {
+            }
         }
 
-#if NETSTANDARD1_3
+        private bool IsLocalNetworkAddress(IPAddress address)
+        {
+            switch (address.AddressFamily)
+            {
+                case AddressFamily.InterNetworkV6:
+                    return address.ScopeId == _ipv6InterfaceIndex;
+
+                case AddressFamily.InterNetwork:
+                    var unicastAddresses = _unicastAddresses;
+                    if (unicastAddresses == null)
+                    {
+                        return false;
+                    }
+                    for (int i = 0; i < unicastAddresses.Count; i++)
+                    {
+                        var unicastAddress = unicastAddresses[i];
+
+                        if (unicastAddress.Address.AddressFamily == AddressFamily.InterNetwork)
+                        {
+                            var addr1 = BitConverter.ToUInt32(address.GetAddressBytes(), 0);
+                            var addr2 = BitConverter.ToUInt32(unicastAddress.Address.GetAddressBytes(), 0);
+                            var mask = BitConverter.ToUInt32(unicastAddress.IPv4Mask.GetAddressBytes(), 0);
+                            if ((addr1 & mask) == (addr2 & mask))
+                            {
+                                return true;
+                            }
+                        }
+
+                    }
+                    return false;
+                default:
+                    return false;
+            }
+        }
+
         private void OnReceive(object sender, SocketAsyncEventArgs args)
-#else
-        private void OnReceive(IAsyncResult ar)
-#endif
         {
             lock (this)
             {
-#if NETSTANDARD1_3
-                if (args.SocketError != SocketError.Success || _socket == null)
+                if (args.SocketError != SocketError.Success)
                 {
                     return;
                 }
+
+                Socket socket = (Socket)sender;
+                if (socket != _ipv4Socket && socket != _ipv6Socket)
+                {
+                    return;
+                }
+
+                IPAddress receivedFrom = (args.RemoteEndPoint as IPEndPoint).Address;
+                if (!IsLocalNetworkAddress(receivedFrom))
+                {
+                    StartReceive(socket, args);
+                    return;
+                }
+
                 int length = args.BytesTransferred;
-#else
-                int length;
-                try
-                {
-                    if (_socket == null)
-                    {
-                        return;
-                    }
-                    length = _socket.EndReceive(ar);
-                }
-                catch (Exception)
-                {
-                    return;
-                }
-#endif
-                var stream = new MemoryStream(_buffer, 0, length);
+                var stream = new MemoryStream(args.Buffer, 0, length);
                 var reader = new DnsMessageReader(stream);
                 bool validPacket = true;
 
@@ -259,23 +337,11 @@ namespace Tmds.MDns
                             if ((recordHeader.Type == RecordType.A) || (recordHeader.Type == RecordType.AAAA)) // A or AAAA
                             {
                                 IPAddress address = reader.ReadARecord();
-                                if (address.AddressFamily == AddressFamily.InterNetworkV6)
-                                {
-                                    if (!NetworkInterface.Supports(NetworkInterfaceComponent.IPv6))
-                                    {
-                                        continue;
-                                    }
 
-                                    // Mono does not support IPv6 properties and always throws NotImplementedException.
-                                    // Lets handle the case as with Supports.
-                                    try
-                                    {
-                                        address.ScopeId = NetworkInterface.GetIPProperties().GetIPv6Properties().Index;
-                                    }
-                                    catch (NotImplementedException)
-                                    {
-                                        continue;
-                                    }
+                                // Set the IPv6 scope.
+                                if (address.AddressFamily == AddressFamily.InterNetworkV6 && _ipv6InterfaceIndex != -1)
+                                {
+                                    address.ScopeId = _ipv6InterfaceIndex;
                                 }
                                 OnARecord(recordHeader.Name, address, recordHeader.Ttl);
                             }
@@ -330,7 +396,7 @@ namespace Tmds.MDns
                     HandlePacketHostAddresses();
                     HandlePacketServiceInfos();
                 }
-                StartReceive();
+                StartReceive(socket, args);
             }
         }
 
@@ -696,13 +762,15 @@ namespace Tmds.MDns
             _queryTimer.Change(ms, Timeout.Infinite);
         }
 
-        private bool _isEnabled;
-        private Socket _socket;
-        private readonly int _index;
-        private readonly byte[] _buffer = new byte[9000];
-#if NETSTANDARD1_3
-        private readonly SocketAsyncEventArgs _receiveEventArgs;
-#endif
+        private Socket _ipv4Socket;
+        private Socket _ipv6Socket;
+
+        private bool IsIpv4Enabled => _ipv4Socket != null;
+        private bool IsIpv6Enabled => _ipv6Socket != null;
+
+        private int _ipv6InterfaceIndex = -1;
+        private UnicastIPAddressInformationCollection _unicastAddresses;
+
         private readonly Dictionary<Name, ServiceInfo> _packetServiceInfos = new Dictionary<Name, ServiceInfo>();
         private readonly Dictionary<Name, HostAddresses> _packetHostAddresses = new Dictionary<Name, HostAddresses>();
         private readonly Dictionary<Name, ServiceInfo> _serviceInfos = new Dictionary<Name, ServiceInfo>();
