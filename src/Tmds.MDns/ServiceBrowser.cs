@@ -226,7 +226,7 @@ namespace Tmds.MDns
 
             _networkAvailabilityChangedEventHandler = (s, e) =>
             {
-                 CheckNetworkInterfaceStatuses(interfaceHandlers);
+                CheckNetworkInterfaceStatuses(interfaceHandlers);
             };
             NetworkChange.NetworkAvailabilityChanged += _networkAvailabilityChangedEventHandler;
 
@@ -243,7 +243,18 @@ namespace Tmds.MDns
                 }
 
                 HashSet<NetworkInterfaceHandler> handlers = new HashSet<NetworkInterfaceHandler>(_interfaceHandlers.Values);
-                var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
+                NetworkInterface[] networkInterfaces = Array.Empty<NetworkInterface>();
+                try
+                {
+                    networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
+                }
+                catch (System.ArgumentException)
+                {
+                    // Workaround for bug reported https://github.com/tmds/Tmds.MDns/issues/42
+                    // and https://github.com/dotnet/runtime/issues/49515
+                    return;
+                }
+
                 foreach (NetworkInterface networkInterface in networkInterfaces)
                 {
                     if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
