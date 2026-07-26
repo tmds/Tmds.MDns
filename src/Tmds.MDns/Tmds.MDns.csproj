@@ -11,5 +11,8 @@
     <PackageTags>mdns;avahi;zeroconf;rfc6762;rfc6763</PackageTags>
     <RepositoryType>git</RepositoryType>
     <RepositoryUrl>git://github.com/tmds/Tmds.MDns</RepositoryUrl>
+    <SignAssembly>true</SignAssembly>
+    <PublicSign>true</PublicSign>
+    <AssemblyOriginatorKeyFile>..\..\sign.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 </Project>
