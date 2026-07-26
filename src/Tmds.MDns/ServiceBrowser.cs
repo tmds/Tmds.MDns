@@ -248,10 +248,10 @@ namespace Tmds.MDns
                 {
                     networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
                 }
-                catch (System.ArgumentException)
+                catch
                 {
-                    // Workaround for bug reported https://github.com/tmds/Tmds.MDns/issues/42
-                    // and https://github.com/dotnet/runtime/issues/49515
+                    // Before .NET 11, GetAllNetworkInterfaces can throw when an interface disappears during enumeration (https://github.com/dotnet/runtime/issues/49515).                                                                                                                         
+                    // The next network change event will retry.
                     return;
                 }
 
