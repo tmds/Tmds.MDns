@@ -226,7 +226,7 @@ namespace Tmds.MDns
 
             _networkAvailabilityChangedEventHandler = (s, e) =>
             {
-                 CheckNetworkInterfaceStatuses(interfaceHandlers);
+                CheckNetworkInterfaceStatuses(interfaceHandlers);
             };
             NetworkChange.NetworkAvailabilityChanged += _networkAvailabilityChangedEventHandler;
 
@@ -243,7 +243,18 @@ namespace Tmds.MDns
                 }
 
                 HashSet<NetworkInterfaceHandler> handlers = new HashSet<NetworkInterfaceHandler>(_interfaceHandlers.Values);
-                var networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
+                NetworkInterface[] networkInterfaces = Array.Empty<NetworkInterface>();
+                try
+                {
+                    networkInterfaces = NetworkInterface.GetAllNetworkInterfaces();
+                }
+                catch
+                {
+                    // Before .NET 11, GetAllNetworkInterfaces can throw when an interface disappears during enumeration (https://github.com/dotnet/runtime/issues/49515).                                                                                                                         
+                    // The next network change event will retry.
+                    return;
+                }
+
                 foreach (NetworkInterface networkInterface in networkInterfaces)
                 {
                     if (networkInterface.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
