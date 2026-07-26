@@ -64,18 +64,35 @@ namespace Tmds.MDns
             {
                 if (supportsIPv4 && _ipv4Socket == null)
                 {
-                    int index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
-                    _ipv4Socket = CreateIpv4Socket(index);
-
-                    StartReceive(_ipv4Socket, CreateEventArgs(_ipv4Socket, OnReceive));
+                    try
+                    {
+                        int index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
+                        _ipv4Socket = CreateIpv4Socket(index);
+                        StartReceive(_ipv4Socket, CreateEventArgs(_ipv4Socket, OnReceive));
+                    }
+                    // Interface changes may cause SocketException or NetworkInformationException.
+                    catch (Exception ex) when (ex is SocketException || ex is NetworkInformationException)
+                    {
+                        _ipv4Socket?.Dispose();
+                        _ipv4Socket = null;
+                    }
                 }
 
                 if (supportsIPv6 && _ipv6Socket == null)
                 {
-                    _ipv6InterfaceIndex = networkInterface.GetIPProperties().GetIPv6Properties().Index;
-                    _ipv6Socket = CreateIpv6Socket(_ipv6InterfaceIndex);
-
-                    StartReceive(_ipv6Socket, CreateEventArgs(_ipv6Socket, OnReceive));
+                    try
+                    {
+                        _ipv6InterfaceIndex = networkInterface.GetIPProperties().GetIPv6Properties().Index;
+                        _ipv6Socket = CreateIpv6Socket(_ipv6InterfaceIndex);
+                        StartReceive(_ipv6Socket, CreateEventArgs(_ipv6Socket, OnReceive));
+                    }
+                    // Interface changes may cause SocketException or NetworkInformationException.
+                    catch (Exception ex) when (ex is SocketException || ex is NetworkInformationException)
+                    {
+                        _ipv6Socket?.Dispose();
+                        _ipv6Socket = null;
+                        _ipv6InterfaceIndex = -1;
+                    }
                 }
 
                 StartQuery();
@@ -85,22 +102,38 @@ namespace Tmds.MDns
         private static Socket CreateIpv4Socket(int index)
         {
             var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, IPAddress.HostToNetworkOrder(index));
-            socket.Bind(new IPEndPoint(IPAddress.Any, IPv4EndPoint.Port));
-            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(IPv4EndPoint.Address, index));
-            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
+            try
+            {
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, IPAddress.HostToNetworkOrder(index));
+                socket.Bind(new IPEndPoint(IPAddress.Any, IPv4EndPoint.Port));
+                socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(IPv4EndPoint.Address, index));
+                socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
             return socket;
         }
 
         private static Socket CreateIpv6Socket(int index)
         {
             var socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
-            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastInterface, index);
-            socket.Bind(new IPEndPoint(IPAddress.IPv6Any, IPv6EndPoint.Port));
-            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.AddMembership, new IPv6MulticastOption(IPv6EndPoint.Address, index));
-            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastTimeToLive, 1);
+            try
+            {
+                socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastInterface, index);
+                socket.Bind(new IPEndPoint(IPAddress.IPv6Any, IPv6EndPoint.Port));
+                socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.AddMembership, new IPv6MulticastOption(IPv6EndPoint.Address, index));
+                socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastTimeToLive, 1);
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
             return socket;
         }
 
