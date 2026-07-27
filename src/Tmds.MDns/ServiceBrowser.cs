@@ -97,7 +97,7 @@ namespace Tmds.MDns
         public event EventHandler<NetworkInterfaceEventArgs> NetworkInterfaceAdded;
         public event EventHandler<NetworkInterfaceEventArgs> NetworkInterfaceRemoved;
 
-        internal void OnServiceAdded(ServiceInfo service)
+        internal void OnServiceAdded(ServiceInfo service, Name serviceTypeName)
         {
             var announcement = new ServiceAnnouncement
             {
@@ -108,11 +108,11 @@ namespace Tmds.MDns
                 NetworkInterface = service.NetworkInterface,
                 Port = (ushort)service.Port,
                 Txt = service.Txt,
-                Type = service.Name.SubName(1, 2).ToString()
+                Type = StripLocalSuffix(serviceTypeName)
             };
             lock (_serviceAnnouncements)
             {
-                _serviceAnnouncements.Add(Tuple.Create(service.NetworkInterface.Id, service.Name), announcement);
+                _serviceAnnouncements.Add(Tuple.Create(service.NetworkInterface.Id, service.Name, serviceTypeName), announcement);
             }
             SynchronizationContextPost(o =>
             {
@@ -127,9 +127,9 @@ namespace Tmds.MDns
             });
         }
 
-        internal void OnServiceRemoved(ServiceInfo service)
+        internal void OnServiceRemoved(ServiceInfo service, Name serviceTypeName)
         {
-            var key = Tuple.Create(service.NetworkInterface.Id, service.Name);
+            var key = Tuple.Create(service.NetworkInterface.Id, service.Name, serviceTypeName);
             ServiceAnnouncement announcement;
             lock (_serviceAnnouncements)
             {
@@ -172,12 +172,12 @@ namespace Tmds.MDns
             });
         }
 
-        internal void OnServiceChanged(ServiceInfo service)
+        internal void OnServiceChanged(ServiceInfo service, Name serviceTypeName)
         {
             ServiceAnnouncement announcement;
             lock (_serviceAnnouncements)
             {
-                announcement = _serviceAnnouncements[Tuple.Create(service.NetworkInterface.Id, service.Name)];
+                announcement = _serviceAnnouncements[Tuple.Create(service.NetworkInterface.Id, service.Name, serviceTypeName)];
             }
             var tmpAnnouncement = new ServiceAnnouncement()
             {
@@ -188,7 +188,7 @@ namespace Tmds.MDns
                 NetworkInterface = service.NetworkInterface,
                 Port = (ushort)service.Port,
                 Txt = service.Txt,
-                Type = service.Name.SubName(1, 2).ToString()
+                Type = StripLocalSuffix(serviceTypeName)
             };
             SynchronizationContextPost(o =>
             {
@@ -325,8 +325,13 @@ namespace Tmds.MDns
             }
         }
 
+        private static string StripLocalSuffix(Name name)
+        {
+            return name.SubName(0, name.Labels.Count - 2).ToString();
+        }
+
         private readonly HashSet<ServiceAnnouncement> _services = new HashSet<ServiceAnnouncement>();
-        private readonly Dictionary<Tuple<string, Name>, ServiceAnnouncement> _serviceAnnouncements = new Dictionary<Tuple<string, Name>, ServiceAnnouncement>();
+        private readonly Dictionary<Tuple<string, Name, Name>, ServiceAnnouncement> _serviceAnnouncements = new Dictionary<Tuple<string, Name, Name>, ServiceAnnouncement>();
         private Dictionary<int, NetworkInterfaceHandler> _interfaceHandlers;
         NetworkAddressChangedEventHandler _networkAddressChangedEventHandler;
         NetworkAvailabilityChangedEventHandler _networkAvailabilityChangedEventHandler;
