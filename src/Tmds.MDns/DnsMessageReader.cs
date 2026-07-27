@@ -78,6 +78,13 @@ namespace Tmds.MDns
             BaseStream = stream;
         }
 
+        public void ResetToRecordPosition(long position)
+        {
+            BaseStream.Seek(position, SeekOrigin.Begin);
+            _recordLength = -1;
+            _nextRecord = 0;
+        }
+
         public Header ReadHeader()
         {
             ushort transactionId = ReadUInt16();

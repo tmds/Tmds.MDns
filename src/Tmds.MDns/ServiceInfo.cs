@@ -23,7 +23,7 @@ namespace Tmds.MDns
 {
     class ServiceInfo
     {
-        public ServiceInfo(NetworkInterface networkInterface, Name name)
+        public ServiceInfo(NetworkInterface networkInterface, Name name, HashSet<Name> serviceTypeNames)
         {
             if (name == null)
             {
@@ -34,11 +34,13 @@ namespace Tmds.MDns
                 throw new ArgumentNullException("networkInterface");
             }
             Name = name;
+            ServiceTypeNames = serviceTypeNames != null ? new HashSet<Name>(serviceTypeNames) : new HashSet<Name>();
             Port = -1;
             NetworkInterface = networkInterface;
         }
 
         public Name Name { get; set; }
+        public HashSet<Name> ServiceTypeNames { get; }
         public Name HostName { get; set; }
         public int Port { get; set; }
         public IList<IPAddress> Addresses { get; set; }
