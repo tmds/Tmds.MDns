@@ -1,18 +1,16 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0</TargetFrameworks>
     <Description>This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).</Description>
-    <AssemblyTitle>Tmds.MDns</AssemblyTitle>
-    <VersionPrefix>0.8.1</VersionPrefix>
     <Authors>Tom Deseyn</Authors>
-    <TargetFrameworks>netstandard2.0;net60</TargetFrameworks>
-    <AssemblyName>Tmds.MDns</AssemblyName>
-    <PackageId>Tmds.MDns</PackageId>
     <PackageTags>mdns;avahi;zeroconf;rfc6762;rfc6763</PackageTags>
+    <PackageLicenseExpression>LGPL-2.1-only</PackageLicenseExpression>
     <RepositoryType>git</RepositoryType>
-    <RepositoryUrl>git://github.com/tmds/Tmds.MDns</RepositoryUrl>
+    <RepositoryUrl>https://github.com/tmds/Tmds.MDns</RepositoryUrl>
     <SignAssembly>true</SignAssembly>
     <PublicSign>true</PublicSign>
-    <AssemblyOriginatorKeyFile>..\..\sign.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile>../../sign.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
+
 </Project>
