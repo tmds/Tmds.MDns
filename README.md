@@ -1,18 +1,19 @@
-[![AppVeyor](https://ci.appveyor.com/api/projects/status/g2arq8vpwasvvu4t?svg=true)](https://ci.appveyor.com/project/tmds/tmds-mdns/branch/master)
 [![NuGet](https://img.shields.io/nuget/v/Tmds.MDns.svg)](https://www.nuget.org/packages/Tmds.MDns)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/Tmds.MDns)](https://www.nuget.org/packages/Tmds.MDns)
+[![License](https://img.shields.io/github/license/tmds/Tmds.MDns)](https://github.com/tmds/Tmds.MDns/blob/main/LICENSE)
+![.NET](https://img.shields.io/badge/.NET-Standard%202.0%20%7C%208.0-512BD4)
 
-Tmds.MDns
-=========
+# Tmds.MDns
+
+### Sponsoring
+
+Tmds.MDns is open source and free to use under the MIT license. If your organization depends on it, please consider [sponsoring its maintenance](https://github.com/sponsors/tmds).
+
+This isn't a support contract or a license fee — the source stays open and the rules stay simple. Sponsoring is a small, predictable way to help sustain the work that goes into bug fixes, security updates, and new features.
 
 This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).
 
-Version 0.7.0+ is compatible with .NET Core and .NET Framework 4.0+.
-Version 0.6 and below also supported .NET Framework 2.0, 3.5.
-Support for these versions was dropped due to a dotnet cli msbuild issue:
-https://github.com/Microsoft/msbuild/issues/1333.
-
-Example
--------
+## Example
 
 This examples shows how to use the ServiceBrowser class to find \_workstation.\_tcp_ types.
 
@@ -73,8 +74,7 @@ namespace ServiceFinder
 }
 ```
 
-Implementation
---------------
+## Implementation
 
 The library does not aim to be a reference DNS querier and cache as described in RFC6762. These are the key differences:
 
