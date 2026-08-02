@@ -5,13 +5,13 @@
 
 # Tmds.MDns
 
+This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).
+
 ### Sponsoring
 
 Tmds.MDns is open source and free to use under the MIT license. If your organization depends on it, please consider [sponsoring its maintenance](https://github.com/sponsors/tmds).
 
 This isn't a support contract or a license fee — the source stays open and the rules stay simple. Sponsoring is a small, predictable way to help sustain the work that goes into bug fixes, security updates, and new features.
-
-This library allows to find services announced via multicast DNS (RFC6762 and RFC6763).
 
 ## Example
 
