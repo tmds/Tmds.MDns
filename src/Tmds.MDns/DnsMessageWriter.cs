@@ -140,7 +140,7 @@ namespace Tmds.MDns
             bool finished = false;
             foreach(string label in name.Labels)
             {
-                int length = label.Length;
+                int length = Encoding.UTF8.GetByteCount(label);
                 finished = (length == 0);
                 _stream.WriteByte((byte)length);
                 Encoding.UTF8.GetBytes(label, 0, label.Length, _buffer, (int)_stream.Position);
