@@ -21,9 +21,9 @@ namespace Tmds.MDns
         public bool IsQuery { get { return (!IsResponse); } }
         public bool IsResponse { get { return ((Flags & (1 << 15)) != 0); } }
         
-        public bool IsStandardQuery { get { return ((Flags & (0xf << 9)) == 0); } }
-        public bool IsInverseQuery { get { return ((Flags & (0xf << 9)) == 1); } }
-        public bool IsServerStatusRequest { get { return ((Flags & (0xf << 9)) == 2); } }
+        public bool IsStandardQuery { get { return ((Flags & (0xf << 11)) == 0); } }
+        public bool IsInverseQuery { get { return ((Flags & (0xf << 11)) == (1 << 11)); } }
+        public bool IsServerStatusRequest { get { return ((Flags & (0xf << 11)) == (2 << 11)); } }
         
         public bool IsAuthorativeAnswer { get { return ((Flags & (1 << 10)) != 0); } }
         public bool IsTruncated { get { return ((Flags & (1 << 9)) != 0); } }
