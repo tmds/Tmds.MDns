@@ -146,6 +146,12 @@ namespace Tmds.MDns
             {
                 StopQuery();
 
+                foreach (var timer in _robustnessTimers)
+                {
+                    timer.Dispose();
+                }
+                _robustnessTimers.Clear();
+
                 foreach (var serviceHandlerKV in _serviceHandlers)
                 {
                     ServiceHandler serviceHandler = serviceHandlerKV.Value;
@@ -231,10 +237,12 @@ namespace Tmds.MDns
             }
             if (robustnessServices != null)
             {
-                var timer = new Timer(o =>
+                Timer timer = null;
+                timer = new Timer(o =>
                 {
                     lock (o)
                     {
+                        _robustnessTimers.Remove(timer);
                         foreach (ServiceInfo robustnessService in robustnessServices)
                         {
                             if (robustnessService.OpenQueryCount >= ServiceBrowser.QueryParameters.Robustness)
@@ -245,6 +253,7 @@ namespace Tmds.MDns
                         }
                     }
                 }, this, ServiceBrowser.QueryParameters.ResponseTime, Timeout.Infinite);
+                _robustnessTimers.Add(timer);
             }
         }
 
@@ -922,5 +931,6 @@ namespace Tmds.MDns
         private readonly Timer _queryTimer;
         private Random _randomGenerator = new Random();
         private ushort _lastQueryId;
+        private readonly List<Timer> _robustnessTimers = new List<Timer>();
     }
 }
