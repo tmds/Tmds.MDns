@@ -70,6 +70,10 @@ namespace Tmds.MDns
 
         public override bool Equals(object obj)
         {
+            if (obj is null)
+            {
+                return false;
+            }
             return StringComparer.OrdinalIgnoreCase.Equals(ToString(), obj.ToString());
         }
 
