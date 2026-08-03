@@ -237,12 +237,17 @@ namespace Tmds.MDns
         private Name ReadName()
         {
             Name name = new Name();
-            ReadName(name);
+            ReadName(name, 0);
             return name;
         }
 
-        private void ReadName(Name name)
+        private void ReadName(Name name, int depth)
         {
+            if (depth > 128)
+            {
+                throw new Exception();
+            }
+
             while (true)
             {
                 byte labelLength = ReadByte();
@@ -251,7 +256,7 @@ namespace Tmds.MDns
                     int offset = ((labelLength & 0x3F) << 8) + ReadByte();
                     long oldOffset = BaseStream.Position;
                     BaseStream.Seek(offset, SeekOrigin.Begin);
-                    ReadName(name);
+                    ReadName(name, depth + 1);
                     BaseStream.Seek(oldOffset, SeekOrigin.Begin);
                     return;
                 }
