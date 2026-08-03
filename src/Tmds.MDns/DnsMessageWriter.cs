@@ -49,7 +49,7 @@ namespace Tmds.MDns
         public void WritePtrRecord(RecordSection recordType, Name name, Name ptrName, uint ttl, RecordClass _class = RecordClass.Internet)
         {
             WriteRecordStart(recordType, name, RecordType.PTR, ttl, _class);
-            WriteRecordData(name);
+            WriteRecordData(ptrName);
             WriteRecordEnd();
         }
 
