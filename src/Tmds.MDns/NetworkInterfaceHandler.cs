@@ -873,6 +873,11 @@ namespace Tmds.MDns
                         writer.WriteQuestion(serviceKV.Value.Name, RecordType.SRV);
                         sendQuery = true;
                     }
+                    if (serviceKV.Value.Txt == null)
+                    {
+                        writer.WriteQuestion(serviceKV.Value.Name, RecordType.TXT);
+                        sendQuery = true;
+                    }
                 }
 
                 foreach (var hostKV in _hostInfos)
