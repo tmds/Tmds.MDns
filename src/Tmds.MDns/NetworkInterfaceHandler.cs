@@ -37,19 +37,18 @@ namespace Tmds.MDns
             var supportsIPv4 = networkInterface.Supports(NetworkInterfaceComponent.IPv4);
             var supportsIPv6 = networkInterface.Supports(NetworkInterfaceComponent.IPv6);
 
-            if (supportsIPv4)
-            {
-                _unicastAddresses = networkInterface.GetIPProperties().UnicastAddresses;
-            }
-
-            if ((IsIpv4Enabled || !supportsIPv4) &&
-                (IsIpv6Enabled || !supportsIPv6))
-            {
-                return;
-            }
-
             lock (this)
             {
+                if (supportsIPv4)
+                {
+                    _unicastAddresses = networkInterface.GetIPProperties().UnicastAddresses;
+                }
+
+                if ((IsIpv4Enabled || !supportsIPv4) &&
+                    (IsIpv6Enabled || !supportsIPv6))
+                {
+                    return;
+                }
                 if (supportsIPv4 && _ipv4Socket == null)
                 {
                     try
