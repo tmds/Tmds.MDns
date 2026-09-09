@@ -53,15 +53,14 @@ namespace Tmds.MDns
                 {
                     try
                     {
-                        int index = networkInterface.GetIPProperties().GetIPv4Properties().Index;
-                        _ipv4Socket = CreateIpv4Socket(index);
+                        _ipv4InterfaceIndex = networkInterface.GetIPProperties().GetIPv4Properties().Index;
+                        _ipv4Socket = CreateIpv4Socket(_ipv4InterfaceIndex, UsePacketInformation);
                         StartReceive(_ipv4Socket, CreateEventArgs(_ipv4Socket, OnReceive));
                     }
                     // Interface changes may cause SocketException or NetworkInformationException.
                     catch (Exception ex) when (ex is SocketException || ex is NetworkInformationException)
                     {
-                        _ipv4Socket?.Dispose();
-                        _ipv4Socket = null;
+                        DisposeIpv4Socket();
                     }
                 }
 
@@ -70,15 +69,13 @@ namespace Tmds.MDns
                     try
                     {
                         _ipv6InterfaceIndex = networkInterface.GetIPProperties().GetIPv6Properties().Index;
-                        _ipv6Socket = CreateIpv6Socket(_ipv6InterfaceIndex);
+                        _ipv6Socket = CreateIpv6Socket(_ipv6InterfaceIndex, UsePacketInformation);
                         StartReceive(_ipv6Socket, CreateEventArgs(_ipv6Socket, OnReceive));
                     }
                     // Interface changes may cause SocketException or NetworkInformationException.
                     catch (Exception ex) when (ex is SocketException || ex is NetworkInformationException)
                     {
-                        _ipv6Socket?.Dispose();
-                        _ipv6Socket = null;
-                        _ipv6InterfaceIndex = -1;
+                        DisposeIpv6Socket();
                     }
                 }
 
@@ -86,7 +83,7 @@ namespace Tmds.MDns
             }
         }
 
-        private static Socket CreateIpv4Socket(int index)
+        private static Socket CreateIpv4Socket(int index, bool packetInformation)
         {
             var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             try
@@ -96,6 +93,10 @@ namespace Tmds.MDns
                 socket.Bind(new IPEndPoint(IPAddress.Any, IPv4EndPoint.Port));
                 socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(IPv4EndPoint.Address, index));
                 socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 1);
+                if (packetInformation)
+                {
+                    socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.PacketInformation, true);
+                }
             }
             catch
             {
@@ -105,7 +106,15 @@ namespace Tmds.MDns
             return socket;
         }
 
-        private static Socket CreateIpv6Socket(int index)
+        private void DisposeIpv4Socket()
+        {
+            _ipv4Socket?.Dispose();
+            _ipv4Socket = null;
+            _ipv4InterfaceIndex = -1;
+            _unicastAddresses = null;
+        }
+
+        private static Socket CreateIpv6Socket(int index, bool packetInformation)
         {
             var socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
             try
@@ -115,6 +124,10 @@ namespace Tmds.MDns
                 socket.Bind(new IPEndPoint(IPAddress.IPv6Any, IPv6EndPoint.Port));
                 socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.AddMembership, new IPv6MulticastOption(IPv6EndPoint.Address, index));
                 socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastTimeToLive, 1);
+                if (packetInformation)
+                {
+                    socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.PacketInformation, true);
+                }
             }
             catch
             {
@@ -122,6 +135,13 @@ namespace Tmds.MDns
                 throw;
             }
             return socket;
+        }
+
+        private void DisposeIpv6Socket()
+        {
+            _ipv6Socket?.Dispose();
+            _ipv6Socket = null;
+            _ipv6InterfaceIndex = -1;
         }
 
         private static SocketAsyncEventArgs CreateEventArgs(Socket socket, EventHandler<SocketAsyncEventArgs> handler)
@@ -157,13 +177,8 @@ namespace Tmds.MDns
                     serviceHandler.ServiceInfos.Clear();
                 }
 
-                _ipv4Socket?.Dispose();
-                _ipv4Socket = null;
-                _unicastAddresses = null;
-
-                _ipv6Socket?.Dispose();
-                _ipv6Socket = null;
-                _ipv6InterfaceIndex = -1;
+                DisposeIpv4Socket();
+                DisposeIpv6Socket();
 
                 foreach (var serviceKV in _serviceInfos)
                 {
@@ -260,7 +275,8 @@ namespace Tmds.MDns
         {
             try
             {
-                bool pending = socket.ReceiveFromAsync(args);
+                bool pending = UsePacketInformation ? socket.ReceiveMessageFromAsync(args)
+                                                    : socket.ReceiveFromAsync(args);
                 if (!pending)
                 {
                     OnReceive(socket, args);
@@ -321,8 +337,10 @@ namespace Tmds.MDns
                     return;
                 }
 
-                IPAddress receivedFrom = (args.RemoteEndPoint as IPEndPoint).Address;
-                if (!IsLocalNetworkAddress(receivedFrom))
+                bool ignore = UsePacketInformation
+                    ? args.ReceiveMessageFromPacketInfo.Interface != (socket == _ipv4Socket ? _ipv4InterfaceIndex : _ipv6InterfaceIndex)
+                    : !IsLocalNetworkAddress((args.RemoteEndPoint as IPEndPoint).Address);
+                if (ignore)
                 {
                     StartReceive(socket, args);
                     return;
@@ -922,7 +940,9 @@ namespace Tmds.MDns
 
         private bool IsIpv4Enabled => _ipv4Socket != null;
         private bool IsIpv6Enabled => _ipv6Socket != null;
+        private bool UsePacketInformation => ServiceBrowser.IncludeNonLocalServices;
 
+        private int _ipv4InterfaceIndex = -1;
         private int _ipv6InterfaceIndex = -1;
         private UnicastIPAddressInformationCollection _unicastAddresses;
 

@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Linq;
 
@@ -77,6 +78,31 @@ namespace Tmds.MDns
         public SynchronizationContext SynchronizationContext { get; set; }
         public bool IsBrowsing { get; private set; }
         public ICollection<ServiceAnnouncement> Services { private set; get; }
+
+        /// <summary>
+        /// Also report services that respond from an address outside the local network of the receiving interface.
+        /// Such services may not be reachable from this host. Must be set before browsing starts.
+        /// </summary>
+        public bool IncludeNonLocalServices
+        {
+            get => _includeNonLocalServices;
+            set
+            {
+                if (IsBrowsing)
+                {
+                    throw new InvalidOperationException($"{nameof(IncludeNonLocalServices)} cannot be changed while browsing.");
+                }
+                if (value && !IsPacketInformationSupported)
+                {
+                    throw new PlatformNotSupportedException($"{nameof(IncludeNonLocalServices)} requires IPPacketInformation.Interface, which is only supported on Windows and Linux.");
+                }
+                _includeNonLocalServices = value;
+            }
+        }
+
+        // IPPacketInformation.Interface is only filled in on Windows and Linux.
+        private static bool IsPacketInformationSupported =>
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
 
         public event EventHandler<ServiceAnnouncementEventArgs> ServiceAdded;
         public event EventHandler<ServiceAnnouncementEventArgs> ServiceRemoved;
@@ -323,5 +349,6 @@ namespace Tmds.MDns
         NetworkAddressChangedEventHandler _networkAddressChangedEventHandler;
         NetworkAvailabilityChangedEventHandler _networkAvailabilityChangedEventHandler;
         private List<string> _serviceTypes = new List<string>();
+        private bool _includeNonLocalServices;
     }
 }
