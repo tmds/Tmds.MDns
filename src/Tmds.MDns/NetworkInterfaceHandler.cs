@@ -275,6 +275,7 @@ namespace Tmds.MDns
         {
             try
             {
+                args.SocketFlags = SocketFlags.None;
                 bool pending = UsePacketInformation ? socket.ReceiveMessageFromAsync(args)
                                                     : socket.ReceiveFromAsync(args);
                 if (!pending)
